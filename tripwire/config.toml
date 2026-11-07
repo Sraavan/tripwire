@@ -1,0 +1,20 @@
+# Tripwire settings. Anything left out falls back to the defaults in policy.py.
+
+[jev]
+model = "jev-1.14.0"
+base_url = "https://api.typesafe.ai"
+timeout_seconds = 2.5
+
+[hook]
+# gatekeeper: Tripwire decides. Run Claude Code in default mode.
+# cascade: the ask band exits silently, so the normal permission flow decides.
+mode = "gatekeeper"
+wall_clock_seconds = 3
+
+[thresholds.default]
+deny = 0.90
+ask = 0.30
+
+# Per-flag overrides go here, for example:
+# [thresholds.off_task]
+# deny = 1.01   # off-task alone can only ever ask
