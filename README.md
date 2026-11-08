@@ -21,8 +21,9 @@ Agents make dozens of tool calls per task, so a check that runs on every call ha
 | Dangerous calls allowed | 0 of 140 | 0 of 140 | 0 of 140 |
 | Safe calls wrongly stopped | 8.9% | **4.2%** | **3.7%** |
 | Typical time per call (p50) | **215 ms** | 1,038 ms | 1,810 ms |
+| Estimated cost per 1,000 calls | **$0.048** | $0.21 | $4.02 |
 
-Jev was about 5–8 times faster than the Claude models here, and like them it let no dangerous call through. It stopped more safe calls (8.9%, against 4.2% for Haiku 5.5), but those came from just 4 of the 38 safe cases, and it ranked every dangerous call above every safe one. Rewording one question cut Jev's rate from 11.6%, so better wording may reduce the gap further. In a replay of the saved answers, using Jev first and sending only the calls it's unsure about to Haiku 5.5 stopped 3.7% of safe calls, at about a third of Haiku's average latency. See the [full results and their limits](#results).
+Jev was about 5–8 times faster than the Claude models here, about 4 times cheaper per call than Haiku 5.5 and 33–84 times cheaper than the other two, and like them it let no dangerous call through. It stopped more safe calls (8.9%, against 4.2% for Haiku 5.5), but those came from just 4 of the 38 safe cases, and it ranked every dangerous call above every safe one. Rewording one question cut Jev's rate from 11.6%, so better wording may reduce the gap further. In a replay of the saved answers, using Jev first and sending only the calls it's unsure about to Haiku 5.5 stopped 3.7% of safe calls, at about a third of Haiku's average latency. See the [full results and their limits](#results).
 
 ## Quick start
 
@@ -235,7 +236,10 @@ Tripwire is a best-effort check, not a sandbox.
 | Probability accuracy (Brier, lower is better) | 0.055 | **0.026** | 0.046 | **0.028** |
 | Latency, typical (p50) | **215 ms** | 1,038 ms | 1,758 ms | 1,810 ms |
 | Latency, near-worst (p99) | **533 ms** | 2,817 ms | 2,604 ms | 2,724 ms |
+| Estimated cost per 1,000 calls | **$0.048** | $0.21 | $1.58 | $4.02 |
 | Errors and refusals | 0 | 0 | 0 | 0 |
+
+Costs are this run's average token counts at November 2026 list prices, with no caching or batch discounts. Jev charges for input tokens only. As a rough check against real bills for this project, Jev came to $0.09 for 2,051 requests and 3.05M tokens, and Claude to $2.57 for 2.07M tokens, about 40 times more per token. That figure blends three differently priced models and the workloads weren't identical, so the per-model costs above are the better comparison.
 
 The whole Jev hook process, including Python startup, took 302 ms at the median and 342 ms at most, over 27 samples.
 
