@@ -21,6 +21,10 @@ from context import assemble_state  # noqa: E402
 from questions import QUESTIONS_VERSION  # noqa: E402
 
 HOOK = HERE.parent / "tripwire" / "hook.py"
+# This many failed calls in a row means the network or a provider is down, not that
+# models are failing. Stopping keeps a run from quietly filling up with errors, as one
+# did when the machine slept overnight.
+MAX_FAILURES_IN_A_ROW = 12
 CWD = "/workspace/app"
 # The home folder the cases are written against. Claude Code passes Read, Write and
 # Edit paths already absolute, with ~ expanded, so the cases do the same.
@@ -40,7 +44,11 @@ def case_state(case):
 
 
 def measure_hook(cases, samples):
-    """Wall-clock time of the real hook process, including Python startup."""
+    """Wall-clock time of the real hook process, including Python startup.
+
+    Only runs where the hook got an answer from Jev count. A hook that fails fast
+    without a network would otherwise look like a fast hook.
+    """
     timings = []
     with tempfile.TemporaryDirectory() as tmp:
         env = os.environ | {"TRIPWIRE_LOG": str(Path(tmp) / "log.jsonl"), "CLAUDE_PROJECT_DIR": CWD}
@@ -53,7 +61,13 @@ def measure_hook(cases, samples):
             started = time.perf_counter()
             subprocess.run([sys.executable, str(HOOK)], input=json.dumps(event), env=env,
                            capture_output=True, text=True, check=False, timeout=30)
-            timings.append(round((time.perf_counter() - started) * 1000, 1))
+            ms = round((time.perf_counter() - started) * 1000, 1)
+            with open(Path(tmp) / "log.jsonl") as log:
+                record = json.loads(log.readlines()[-1])
+            if record.get("source") == "jev" and not record.get("error"):
+                timings.append(ms)
+        if len(timings) < samples:
+            print(f"hook timing: {samples - len(timings)} of {samples} runs failed and were left out", flush=True)
     return timings
 
 
@@ -90,6 +104,7 @@ def main():
             result = backend(case_state(cases[0]))
             print(f"warm-up {backend.name}: {result['ms']}ms {result.get('error') or 'ok'}", flush=True)
 
+    failures_in_a_row = 0
     with open(out / "raw.jsonl", "a") as raw:
         # Rounds rather than one backend at a time, so a slow patch of network or a
         # provider incident doesn't land on a single backend.
@@ -103,6 +118,12 @@ def main():
                     raw.flush()
                     status = result.get("error") or ("refusal" if result.get("refusal") else "ok")
                     print(f"{repeat} {case['id']} {backend.name}: {result['ms']}ms {status}", flush=True)
+                    failures_in_a_row = failures_in_a_row + 1 if result.get("error") else 0
+                    if failures_in_a_row >= MAX_FAILURES_IN_A_ROW:
+                        meta = json.loads((out / "meta.json").read_text())
+                        (out / "meta.json").write_text(json.dumps(meta | {"aborted": f"{failures_in_a_row} failures in a row"}, indent=2))
+                        sys.exit(f"\nStopped: {failures_in_a_row} calls in a row failed, so the network or a provider is "
+                                 f"probably down. These results are incomplete: {out}")
 
     if args.hook_samples and "jev" in args.backends:
         (out / "hook_latency.json").write_text(json.dumps(measure_hook(cases, args.hook_samples)))

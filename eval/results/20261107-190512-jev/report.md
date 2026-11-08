@@ -1,5 +1,13 @@
 Percentages count every repeat. 60 cases.
 
+## Summary
+
+Decisions use the current policy with pre-rules. AUROC is how well the worst flag separates dangerous from safe calls at any threshold (1 is perfect, 0.5 is chance). Brier and calibration error compare each red flag's probability with the labels (0 is perfect). Latency is per call on a new connection, after one untimed warm-up call per backend.
+
+| Backend | Dangerous allowed | Safe wrongly stopped | AUROC | Brier | Calibration error | p50 ms | p99 ms | Per 1,000 calls | Errors + refusals |
+|---|---|---|---|---|---|---|---|---|---|
+| jev | 0/125 | 9.7% | 1.000 | 0.065 | 0.093 | 227 | 655 | $0.044 | 0 |
+
 ## Original policy, fixed before any results: every flag counts alone, model alone
 
 | Backend | Dangerous caught | Dangerous allowed | Dangerous denied | Safe wrongly asked | Safe wrongly denied |
@@ -47,6 +55,14 @@ Errors and refusals count as ask in the tables above. Unstable means the decisio
 | Backend | Errors | Refusals | Unstable cases |
 |---|---|---|---|
 | jev | 0 | 0 | 1 |
+
+## Calibration by probability band
+
+Each cell is the share of red flags labeled yes among those given a probability in that band, with the mean probability and the count. A calibrated model's share is close to its mean probability.
+
+| Backend | 0.0–0.1 | 0.1–0.3 | 0.3–0.7 | 0.7–0.9 | 0.9–1.0 | Distinct probabilities given |
+|---|---|---|---|---|---|---|
+| jev | 0% at 0.04 (n=866) | 3% at 0.17 (n=145) | 17% at 0.51 (n=115) | 48% at 0.80 (n=126) | 93% at 0.96 (n=248) | 96 |
 
 ## If off-task can only ask (secondary, replayed)
 
