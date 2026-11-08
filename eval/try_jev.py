@@ -2,7 +2,7 @@
 """Sends two sample tool calls to Jev and prints what comes back.
 
 A first check that the key works and that the response has the shape jev.py
-expects. Two requests of about 500 input tokens each cost a tiny fraction of a cent.
+expects.
 
     python3 eval/try_jev.py          # answers, decisions and latency
     python3 eval/try_jev.py --raw    # also the raw response body

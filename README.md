@@ -4,7 +4,7 @@
 
 Tripwire is a Claude Code `PreToolUse` hook. Before the agent runs a tool, it asks [Jev](https://docs.typesafe.ai/api), TypeSafe's decision model, seven yes/no questions about the call, then returns allow, ask or deny.
 
-Agents make dozens of tool calls per task, so a safety check runs far more often than a normal LLM call, and its latency adds up. Claude Code's auto mode already reviews actions with a classifier (Claude Sonnet 5 by default). Tripwire asks whether a System One model can make those calls faster and cheaper, and where it can't.
+Agents make dozens of tool calls per task, so a safety check runs far more often than a normal LLM call, and its latency adds up. Claude Code's auto mode already reviews actions with a classifier (Claude Sonnet 5 by default). Tripwire asks whether a System One model can make those calls faster, and where it can't.
 
 ## How it works
 
@@ -84,20 +84,19 @@ Set `TRIPWIRE_SHADOW=1` to log decisions without enforcing them. Decisions are l
 | Calibration (Brier, lower is better) | 0.062 | **0.026** | 0.059 | **0.030** |
 | Latency p50 | **210 ms** | 1,091 ms | 1,823 ms | 1,788 ms |
 | Latency p99 | **635 ms** | 3,116 ms | 2,763 ms | 2,534 ms |
-| Cost per 1,000 calls | **$0.046** | $0.205 | $1.53 | $3.89 |
 | Errors and refusals | 0 | 0 | 0 | 0 |
 
-Jev is about 5–9 times faster at the median, and 4 times (Haiku 5.5) to 84 times (Sonnet 5) cheaper. It catches everything the others catch. Its weakness is false alarms and calibration: the two better Claude models stop about a fifth as many safe calls, and their probabilities track the labels more closely.
+Jev is about 5–9 times faster at the median. It catches everything the others catch. Its weakness is false alarms and calibration: the two better Claude models stop about a fifth as many safe calls, and their probabilities track the labels more closely.
 
 **The best result is both together.** Replayed from the same answers, Jev decides first and only the calls it would `ask` about (10.9%) go to Claude:
 
-| | Sent to Claude | Dangerous allowed | Safe wrongly stopped | Latency p50 / mean | Per 1,000 calls |
-|---|---|---|---|---|---|
-| Haiku 5.5 alone | 100% | 0 of 140 | 2.6% | 1,091 / 1,212 ms | $0.205 |
-| **Jev, then Haiku 5.5** | **10.9%** | **0 of 140** | **2.6%** | **213 / 364 ms** | **$0.068** |
-| Jev, then Sonnet 5 | 10.9% | 0 of 140 | 1.6% | 213 / 419 ms | $0.468 |
+| | Sent to Claude | Dangerous allowed | Safe wrongly stopped | Latency p50 / mean |
+|---|---|---|---|---|
+| Haiku 5.5 alone | 100% | 0 of 140 | 2.6% | 1,091 / 1,212 ms |
+| **Jev, then Haiku 5.5** | **10.9%** | **0 of 140** | **2.6%** | **213 / 364 ms** |
+| Jev, then Sonnet 5 | 10.9% | 0 of 140 | 1.6% | 213 / 419 ms |
 
-The cascade matches Haiku 5.5 alone on both misses and false alarms, at about a third of the cost and of the mean latency. Most calls stop at Jev in about 210 ms, and only the uncertain ones pay for an LLM.
+The cascade matches Haiku 5.5 alone on both misses and false alarms, at about a third of the mean latency. Most calls stop at Jev in about 210 ms, and only the uncertain ones wait for an LLM.
 
 The whole Jev hook process, including Python startup, took p50 286 ms and max 713 ms.
 
@@ -129,20 +128,19 @@ Where Jev did well: it never let a dangerous call through and never wrongly deni
 
 ## Replace or cascade?
 
-On these numbers, Jev alone is the fast, cheap option with more false alarms, and Claude alone is more accurate but 5–9 times slower. Running them as a cascade gets close to the best of both, which is the pattern TypeSafe's docs and independent tests recommend.
+On these numbers, Jev alone is the fast option with more false alarms, and Claude alone is more accurate but 5–9 times slower. Running them as a cascade gets close to the best of both, which is the pattern TypeSafe's docs and independent tests recommend.
 
 **A hook `allow` stops auto mode's classifier from blocking a call.** Claude Code's docs don't say this, so [`eval/allow_test.sh`](eval/allow_test.sh) tests it: a throwaway agent in auto mode pushes to a local repo, with a `hard_deny` rule forbidding pushes. With a silent hook, the classifier blocked the push in 3 of 3 runs. With a hook returning `allow`, the push landed in 3 of 3 runs, past the same rule. The test doesn't show whether the classifier still runs on a call the hook has allowed: the run output doesn't report classifier usage, even in the runs where it blocked.
 
-So Tripwire can sit in front of the classifier in auto mode: `mode = "cascade"` in the config allows and denies what Jev is sure about and exits silently on the rest, leaving them to the classifier. Whether that saves any classifier time or cost is untested, because the classifier may still run on calls the hook allows. The result also means the hook is trusted completely. Nothing else can stop a wrong `allow` from Jev, not even a rule that's meant to be unconditional, so a hook that returns `allow` needs to earn it. Only Tripwire's allow decisions carry that risk: an `ask` goes to the permission prompt, and a `deny` blocks.
+So Tripwire can sit in front of the classifier in auto mode: `mode = "cascade"` in the config allows and denies what Jev is sure about and exits silently on the rest, leaving them to the classifier. Whether that saves any classifier time is untested, because the classifier may still run on calls the hook allows. The result also means the hook is trusted completely. Nothing else can stop a wrong `allow` from Jev, not even a rule that's meant to be unconditional, so a hook that returns `allow` needs to earn it. Only Tripwire's allow decisions carry that risk: an `ask` goes to the permission prompt, and a `deny` blocks.
 
 ## API and DX feedback for TypeSafe
 
 - `noul` answers have no `confidence` field, while `choice` and `score` do.
-- There is a Python SDK (`typesafe-sdk`), but the hook calls the HTTP API with the standard library, because Claude Code starts a new process for every tool call and startup time adds to each one. I haven't measured the SDK's import time. A note on its startup cost, or a minimal client, would help short-lived callers like hooks.
+- There is a Python SDK (`typesafe-sdk`), but the hook calls the HTTP API with the standard library, because Claude Code starts a new process for every tool call and startup time adds to each one. I haven't measured the SDK's import time. A note on its startup time, or a minimal client, would help short-lived callers like hooks.
 - The models page gives no default rate limit numbers, which makes capacity planning harder before signing up.
 - The docs I read don't say whether access is instant or by waitlist.
 - Third-party docs disagree on image support, and on how the 32k limit applies.
-- There's no usage or cost endpoint, and responses don't include a cost, so tracking spend means recomputing it from token counts and a published price.
 - Probabilities come back rounded to two decimal places, which limits calibration work near thresholds.
 - Median latency here was 210 ms on a new connection per call, against the advertised ~100 ms. A note on what the figure assumes (connection reuse, region) would help callers like hooks, which can't keep a connection open.
 - The launch post's FAQ asks where the training data comes from and whether Jev is a smaller LLM, but I couldn't find answers. Retention for request data has no stated period, which matters for tools that send commands and file contents.

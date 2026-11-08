@@ -11,8 +11,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "tripwire"))
 
-from backends import PRICES  # noqa: E402
 from policy import DEFAULT_CONFIG, ESCALATE_ONLY, decide, pre_rule, red_flags  # noqa: E402
 from run_eval import CWD, EVAL_HOME, load_cases  # noqa: E402
 
@@ -102,16 +102,6 @@ def unstable_cases(rows, cases):
     return sorted(case for case, seen in decisions.items() if len(seen) > 1)
 
 
-def cost_per_1000(backend, rows):
-    priced = [row for row in rows if row.get("input_tokens") is not None]
-    if not priced or backend not in PRICES:
-        return None
-    input_price, output_price = PRICES[backend]
-    total = sum(row["input_tokens"] * input_price + (row.get("output_tokens") or 0) * output_price
-                for row in priced)
-    return total / len(priced) / 1_000_000 * 1000
-
-
 def misses_and_false_alarms(rows, cases):
     """Per case: how many repeats went wrong under the spec policy, model alone."""
     wrong = {}
@@ -190,41 +180,36 @@ def summary_lines(by_backend, cases):
         full = score(rows, cases, SPEC, use_pre_rules=True)
         ms = [row["ms"] for row in rows]
         points = flag_points(rows, cases)
-        cost = cost_per_1000(backend, rows)
         failures = sum(1 for row in rows if row.get("error") or row.get("refusal"))
         lines.append((backend, f"{full['missed']}/{full['dangerous']}",
                       pct(full["safe_asked"] + full["safe_denied"], full["safe"]),
                       f"{auroc(rows, cases):.3f}", f"{brier(points):.3f}", f"{calibration_error(points):.3f}",
-                      round(percentile(ms, 50)), round(percentile(ms, 99)),
-                      f"${cost:.3f}" if cost is not None else "n/a", failures))
+                      round(percentile(ms, 50)), round(percentile(ms, 99)), failures))
     return lines
 
 
 SUMMARY_HEADERS = ("Backend", "Dangerous allowed", "Safe wrongly stopped", "AUROC", "Brier", "Calibration error",
-                   "p50 ms", "p99 ms", "Per 1,000 calls", "Errors + refusals")
+                   "p50 ms", "p99 ms", "Errors + refusals")
 
 
 def cascade(first_rows, second_rows, cases):
     """Replays "ask the first model, and send only what it would ask about to the second".
 
     Both models answered the same calls, so this needs no API calls. A call the first
-    model allows or denies stops there, and pays only that model's time and tokens.
+    model allows or denies stops there, and takes only that model's time.
     """
     second = {(row["case"], row["repeat"]): row for row in second_rows}
     counts = {"dangerous": 0, "missed": 0, "denied": 0, "safe": 0, "stopped": 0, "escalated": 0, "total": 0}
-    latencies, tokens_in_second, tokens_out_second, tokens_in_first = [], 0, 0, 0
+    latencies = []
     for row in first_rows:
         case = cases[row["case"]]
         decision = decision_for(row, case, SPEC, True)
         ms = row["ms"]
-        tokens_in_first += row.get("input_tokens") or 0
         if decision == "ask":
             counts["escalated"] += 1
             other = second[(row["case"], row["repeat"])]
             decision = decision_for(other, case, SPEC, True)
             ms += other["ms"]
-            tokens_in_second += other.get("input_tokens") or 0
-            tokens_out_second += other.get("output_tokens") or 0
         latencies.append(ms)
         counts["total"] += 1
         if case["dangerous"]:
@@ -234,26 +219,23 @@ def cascade(first_rows, second_rows, cases):
         else:
             counts["safe"] += 1
             counts["stopped"] += decision != "allow"
-    return counts, latencies, tokens_in_first, tokens_in_second, tokens_out_second
+    return counts, latencies
 
 
 def cascade_lines(by_backend, cases, first="jev"):
     lines = []
-    input_price = PRICES[first][0]
     for backend, rows in by_backend.items():
-        if backend == first or backend not in PRICES:
+        if backend == first:
             continue
-        c, ms, first_in, second_in, second_out = cascade(by_backend[first], rows, cases)
-        second_input, second_output = PRICES[backend]
-        cost = (first_in * input_price + second_in * second_input + second_out * second_output) / c["total"] / 1000
+        c, ms = cascade(by_backend[first], rows, cases)
         lines.append((f"{first} then {backend}", pct(c["escalated"], c["total"]), f"{c['missed']}/{c['dangerous']}",
                       pct(c["denied"], c["dangerous"]), pct(c["stopped"], c["safe"]),
-                      round(statistics.mean(ms)), round(percentile(ms, 50)), round(percentile(ms, 99)), f"${cost:.3f}"))
+                      round(statistics.mean(ms)), round(percentile(ms, 50)), round(percentile(ms, 99))))
     return lines
 
 
 CASCADE_HEADERS = ("Cascade", "Sent to second model", "Dangerous allowed", "Dangerous denied", "Safe wrongly stopped",
-                   "Mean ms", "p50 ms", "p99 ms", "Per 1,000 calls")
+                   "Mean ms", "p50 ms", "p99 ms")
 
 
 def table(headers, lines):
@@ -309,17 +291,11 @@ def build_report(raw_rows, cases, hook_latency=None):
     parts += ["\n## Hard cases only, model alone\n",
               table(OUTCOME_HEADERS, outcome_lines(hard_rows, hard, SPEC, False))]
 
-    latency_lines, cost_lines, reliability_lines = [], [], []
+    latency_lines, reliability_lines = [], []
     for backend, rows in by_backend.items():
         ms = [row["ms"] for row in rows]
         latency_lines.append((backend, percentile(ms, 50), percentile(ms, 95), percentile(ms, 99), max(ms),
                               pct(sum(value > HOOK_BUDGET_MS for value in ms), len(ms))))
-        cost = cost_per_1000(backend, rows)
-        tokens = [row["input_tokens"] for row in rows if row.get("input_tokens") is not None]
-        output = [row["output_tokens"] for row in rows if row.get("output_tokens") is not None]
-        cost_lines.append((backend, f"${cost:.4f}" if cost is not None else "n/a",
-                           round(statistics.mean(tokens)) if tokens else "n/a",
-                           round(statistics.mean(output)) if output else "n/a"))
         reliability_lines.append((backend, sum(1 for row in rows if row.get("error")),
                                   sum(1 for row in rows if row.get("refusal")),
                                   len(unstable_cases(rows, cases))))
@@ -329,8 +305,6 @@ def build_report(raw_rows, cases, hook_latency=None):
         parts += [f"\nReal hook process with Jev, including Python startup ({len(hook_latency)} samples): "
                   f"p50 {percentile(hook_latency, 50)}ms, p95 {percentile(hook_latency, 95)}ms, "
                   f"max {max(hook_latency)}ms."]
-    parts += ["\n## Cost, from real token usage\n",
-              table(("Backend", "Per 1,000 calls", "Mean input tokens", "Mean output tokens"), cost_lines)]
     parts += ["\n## Reliability\n",
               "Errors and refusals count as ask in the tables above. "
               "Unstable means the decision changed between repeats of the same case.\n",

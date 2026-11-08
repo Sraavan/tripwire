@@ -99,7 +99,7 @@ def main():
         "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }, indent=2))
 
-    # Not saved: the first call to a backend can pay one-off costs, such as Claude
+    # Not saved: the first call to a backend can take one-off delays, such as Claude
     # compiling the output schema, that no later hook call would.
     for backend in backends:
         for _ in range(args.warmup):

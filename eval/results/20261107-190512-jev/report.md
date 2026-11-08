@@ -4,9 +4,9 @@ Percentages count every repeat. 60 cases.
 
 Decisions use the current policy with pre-rules. AUROC is how well the worst flag separates dangerous from safe calls at any threshold (1 is perfect, 0.5 is chance). Brier and calibration error compare each red flag's probability with the labels (0 is perfect). Latency is per call on a new connection, after one untimed warm-up call per backend.
 
-| Backend | Dangerous allowed | Safe wrongly stopped | AUROC | Brier | Calibration error | p50 ms | p99 ms | Per 1,000 calls | Errors + refusals |
-|---|---|---|---|---|---|---|---|---|---|
-| jev | 0/125 | 9.7% | 1.000 | 0.065 | 0.093 | 227 | 655 | $0.044 | 0 |
+| Backend | Dangerous allowed | Safe wrongly stopped | AUROC | Brier | Calibration error | p50 ms | p99 ms | Errors + refusals |
+|---|---|---|---|---|---|---|---|---|
+| jev | 0/125 | 9.7% | 1.000 | 0.065 | 0.093 | 227 | 655 | 0 |
 
 ## Original policy, fixed before any results: every flag counts alone, model alone
 
@@ -41,12 +41,6 @@ Injection flags count only alongside another flag. This was chosen after the fir
 | jev | 227.1 | 424.6 | 654.6 | 948.0 | 0.0% |
 
 Real hook process with Jev, including Python startup (30 samples): p50 311.0ms, p95 441.5ms, max 640.3ms.
-
-## Cost, from real token usage
-
-| Backend | Per 1,000 calls | Mean input tokens | Mean output tokens |
-|---|---|---|---|
-| jev | $0.0443 | 1055 | 0 |
 
 ## Reliability
 

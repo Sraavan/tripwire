@@ -4,22 +4,22 @@ Percentages count every repeat. 66 cases.
 
 Decisions use the current policy with pre-rules. AUROC is how well the worst flag separates dangerous from safe calls at any threshold (1 is perfect, 0.5 is chance). Brier and calibration error compare each red flag's probability with the labels (0 is perfect). Latency is per call on a new connection, after one untimed warm-up call per backend.
 
-| Backend | Dangerous allowed | Safe wrongly stopped | AUROC | Brier | Calibration error | p50 ms | p99 ms | Per 1,000 calls | Errors + refusals |
-|---|---|---|---|---|---|---|---|---|---|
-| jev | 0/140 | 11.6% | 1.000 | 0.062 | 0.092 | 210 | 635 | $0.046 | 0 |
-| claude-haiku-5-5 | 0/140 | 2.6% | 0.998 | 0.026 | 0.030 | 1091 | 3116 | $0.205 | 0 |
-| claude-haiku-4-5 | 0/140 | 14.7% | 0.977 | 0.059 | 0.052 | 1823 | 2763 | $1.528 | 0 |
-| claude-sonnet-5 | 0/140 | 2.1% | 1.000 | 0.030 | 0.033 | 1788 | 2534 | $3.893 | 0 |
+| Backend | Dangerous allowed | Safe wrongly stopped | AUROC | Brier | Calibration error | p50 ms | p99 ms | Errors + refusals |
+|---|---|---|---|---|---|---|---|---|
+| jev | 0/140 | 11.6% | 1.000 | 0.062 | 0.092 | 210 | 635 | 0 |
+| claude-haiku-5-5 | 0/140 | 2.6% | 0.998 | 0.026 | 0.030 | 1091 | 3116 | 0 |
+| claude-haiku-4-5 | 0/140 | 14.7% | 0.977 | 0.059 | 0.052 | 1823 | 2763 | 0 |
+| claude-sonnet-5 | 0/140 | 2.1% | 1.000 | 0.030 | 0.033 | 1788 | 2534 | 0 |
 
 ## Cascade: Jev first, and only calls it would ask about go to Claude (replayed)
 
 Calls Jev allows or denies stop there. Replayed from the saved answers, with pre-rules on and the time of both calls added when a call is escalated.
 
-| Cascade | Sent to second model | Dangerous allowed | Dangerous denied | Safe wrongly stopped | Mean ms | p50 ms | p99 ms | Per 1,000 calls |
-|---|---|---|---|---|---|---|---|---|
-| jev then claude-haiku-5-5 | 10.9% | 0/140 | 100.0% | 2.6% | 364 | 213 | 2038 | $0.068 |
-| jev then claude-haiku-4-5 | 10.9% | 0/140 | 100.0% | 6.3% | 430 | 213 | 2327 | $0.212 |
-| jev then claude-sonnet-5 | 10.9% | 0/140 | 100.0% | 1.6% | 419 | 213 | 2332 | $0.468 |
+| Cascade | Sent to second model | Dangerous allowed | Dangerous denied | Safe wrongly stopped | Mean ms | p50 ms | p99 ms |
+|---|---|---|---|---|---|---|---|
+| jev then claude-haiku-5-5 | 10.9% | 0/140 | 100.0% | 2.6% | 364 | 213 | 2038 |
+| jev then claude-haiku-4-5 | 10.9% | 0/140 | 100.0% | 6.3% | 430 | 213 | 2327 |
+| jev then claude-sonnet-5 | 10.9% | 0/140 | 100.0% | 1.6% | 419 | 213 | 2332 |
 
 ## Original policy, fixed before any results: every flag counts alone, model alone
 
@@ -69,15 +69,6 @@ Injection flags count only alongside another flag. This was chosen after the fir
 | claude-sonnet-5 | 1787.9 | 2455.8 | 2534.4 | 2765.2 | 1.8% |
 
 Real hook process with Jev, including Python startup (27 samples): p50 285.5ms, p95 405.9ms, max 713.4ms.
-
-## Cost, from real token usage
-
-| Backend | Per 1,000 calls | Mean input tokens | Mean output tokens |
-|---|---|---|---|
-| jev | $0.0461 | 1098 | 0 |
-| claude-haiku-5-5 | $0.2050 | 1550 | 100 |
-| claude-haiku-4-5 | $1.5284 | 1179 | 70 |
-| claude-sonnet-5 | $3.8928 | 1548 | 80 |
 
 ## Reliability
 

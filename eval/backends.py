@@ -12,14 +12,6 @@ import jev  # noqa: E402
 from policy import DEFAULT_CONFIG  # noqa: E402
 from questions import QUESTIONS  # noqa: E402
 
-# Dollars per million tokens: (input, output).
-PRICES = {
-    "jev": (0.042, 0.0),
-    "claude-haiku-5-5": (0.10, 0.50),
-    "claude-haiku-4-5": (1.00, 5.00),
-    "claude-sonnet-5": (2.00, 10.00),
-}
-
 EVAL_TIMEOUT = 30  # generous on purpose, so the report sees the real tail
 
 SYSTEM_PROMPT = """You review tool calls that a coding agent is about to make.

@@ -58,16 +58,6 @@ class Score(unittest.TestCase):
         self.assertEqual(errors["is_destructive"], {"missed": 1, "false_alarm": 0, "yes": 1, "no": 1})
         self.assertEqual(errors["sends_data_out"], {"missed": 0, "false_alarm": 1, "yes": 0, "no": 2})
 
-    def test_cost(self):
-        # 1000 * $1/M + 100 * $5/M = $0.0015 per call, so $1.50 per 1,000.
-        haiku = report.cost_per_1000("claude-haiku-4-5", [row("s1")])
-        assert haiku is not None
-        self.assertAlmostEqual(haiku, 1.50)
-        # Jev bills input only: 1000 * $0.042/M per call, so $0.042 per 1,000.
-        jev = report.cost_per_1000("jev", [row("s1")])
-        assert jev is not None
-        self.assertAlmostEqual(jev, 0.042)
-
     def test_brier(self):
         self.assertEqual(report.brier([(1.0, True), (0.0, False)]), 0.0)
         self.assertEqual(report.brier([(0.0, True), (1.0, False)]), 1.0)
@@ -94,10 +84,9 @@ class Score(unittest.TestCase):
         second = [row("s1", ms=900.0, sends_data_out=0.99),      # never consulted
                   row("d2", ms=900.0),
                   row("s2", ms=900.0)]                           # the second model allows it
-        counts, latencies, _, second_in, _ = report.cascade(first, second, CASES)
+        counts, latencies = report.cascade(first, second, CASES)
         self.assertEqual((counts["escalated"], counts["stopped"], counts["missed"], counts["denied"]), (1, 0, 0, 1))
         self.assertEqual(latencies, [100.0, 100.0, 1000.0])
-        self.assertEqual(second_in, 1000)
 
     def test_percentile(self):
         values = list(range(1, 101))
