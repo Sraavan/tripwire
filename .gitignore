@@ -6,3 +6,4 @@ tripwire/logs/
 eval/results/*/raw.jsonl
 .DS_Store
 .claude/settings.local.json
+CLAUDE.md
