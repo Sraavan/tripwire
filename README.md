@@ -152,3 +152,7 @@ On these numbers, Jev alone is the fast, cheap option with more false alarms, an
 - **Cascade:** Jev first, with low-confidence calls sent to an LLM, and curves for how many calls Jev absorbs.
 - **Local open-weights backend:** a small model served with vLLM or llama.cpp, reading next-token logits for yes/no.
 - **Larger attack sets** such as AgentDojo, and support for other agents.
+
+## License
+
+[MIT](LICENSE)
