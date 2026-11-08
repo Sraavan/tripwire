@@ -251,13 +251,6 @@ I couldn't find a statement in Claude Code's docs on how a hook's `allow` intera
 
 That suggests `mode = "cascade"` can work: Tripwire would allow or deny what it's sure about and leave the rest to the classifier. It hasn't been run with Tripwire and Jev in a live session. Whether it saves any classifier time is also untested, because the classifier may still run on calls the hook allows.
 
-## Next steps
-
-- **Calibration:** reliability diagrams, and temperature scaling fit on labeled logs.
-- **Shadow mode:** a week of real coding in log-only mode, with real approve/deny labels.
-- **A live cascade:** Jev first, with low-confidence calls sent to an LLM.
-- **Larger attack sets** such as AgentDojo, and support for other agents.
-
 ## License
 
 [MIT](LICENSE)

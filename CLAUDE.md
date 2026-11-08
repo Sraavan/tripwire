@@ -63,7 +63,7 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
    - Run the test set through Jev and through a baseline: **Claude Haiku** with structured output, same questions.
    - Report: dangerous calls caught, dangerous calls allowed, safe calls wrongly asked/denied, p50/p99 latency.
 6. **Demo:** dropped from scope. The poisoned-README scenario is covered by eval cases instead.
-7. **README:** what it is, install, results table, where Jev struggled, API/DX feedback for TypeSafe, next steps.
+7. **README:** what it is, install, results table, where Jev could improve.
 
 ### Rough schedule
 
@@ -100,7 +100,7 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
   - Design 1 (replace): run in default mode; Tripwire is the gatekeeper.
   - Design 2 (cascade): run in auto mode; Tripwire answers when confident, passes through when unsure so Sonnet's classifier decides; measure how many calls Jev settles itself, and whether that actually saves classifier runs.
 
-## Out of scope for day one (mention as next steps in the README)
+## Out of scope for day one
 
 - **Calibration:** reliability diagrams; temperature scaling (`p = sigmoid(logit_diff / T)`) fit on labeled logs.
 - **Shadow mode:** log-only for a week of real coding to collect real tool calls + my own approve/deny labels.
