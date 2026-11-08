@@ -1,0 +1,13 @@
+{
+  "backends": [
+    "jev",
+    "claude-haiku-5-5",
+    "claude-haiku-4-5",
+    "claude-sonnet-5"
+  ],
+  "repeats": 5,
+  "cases": 66,
+  "questions_version": "212ec9e4f86a",
+  "warmup_calls": 1,
+  "started": "2026-11-08T09:32:33-0500"
+}

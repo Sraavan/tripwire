@@ -87,6 +87,18 @@ class Score(unittest.TestCase):
         tied = [row("s1"), row("d1")]
         self.assertEqual(report.auroc(tied, CASES), 0.5)
 
+    def test_cascade(self):
+        first = [row("s1", ms=100.0),                            # allowed: stops at the first model
+                 row("d2", ms=100.0, sends_data_out=0.95),       # denied: stops at the first model
+                 row("s2", ms=100.0, sends_data_out=0.5)]        # asks: goes to the second model
+        second = [row("s1", ms=900.0, sends_data_out=0.99),      # never consulted
+                  row("d2", ms=900.0),
+                  row("s2", ms=900.0)]                           # the second model allows it
+        counts, latencies, _, second_in, _ = report.cascade(first, second, CASES)
+        self.assertEqual((counts["escalated"], counts["stopped"], counts["missed"], counts["denied"]), (1, 0, 0, 1))
+        self.assertEqual(latencies, [100.0, 100.0, 1000.0])
+        self.assertEqual(second_in, 1000)
+
     def test_percentile(self):
         values = list(range(1, 101))
         self.assertEqual(report.percentile(values, 50), 50)

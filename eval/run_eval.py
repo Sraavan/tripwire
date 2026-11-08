@@ -46,10 +46,10 @@ def case_state(case):
 def measure_hook(cases, samples):
     """Wall-clock time of the real hook process, including Python startup.
 
-    Only runs where the hook got an answer from Jev count. A hook that fails fast
-    without a network would otherwise look like a fast hook.
+    Only runs that got an answer from Jev count. A hook that fails fast without a
+    network would otherwise look like a fast hook.
     """
-    timings = []
+    timings, failed = [], 0
     with tempfile.TemporaryDirectory() as tmp:
         env = os.environ | {"TRIPWIRE_LOG": str(Path(tmp) / "log.jsonl"), "CLAUDE_PROJECT_DIR": CWD}
         # Bash goes to the model, so this measures the full path rather than a pre-rule.
@@ -64,10 +64,12 @@ def measure_hook(cases, samples):
             ms = round((time.perf_counter() - started) * 1000, 1)
             with open(Path(tmp) / "log.jsonl") as log:
                 record = json.loads(log.readlines()[-1])
-            if record.get("source") == "jev" and not record.get("error"):
+            if record.get("error"):
+                failed += 1
+            elif record.get("source") == "jev":  # a pre-rule decision never reaches Jev
                 timings.append(ms)
-        if len(timings) < samples:
-            print(f"hook timing: {samples - len(timings)} of {samples} runs failed and were left out", flush=True)
+        if failed:
+            print(f"hook timing: {failed} of {samples} runs failed and were left out", flush=True)
     return timings
 
 
