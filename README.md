@@ -100,10 +100,12 @@ The cascade matches Haiku 5.5 alone on both misses and false alarms, at about a 
 
 The whole Jev hook process, including Python startup, took p50 286 ms and max 713 ms.
 
+The full breakdown is in [the report](eval/results/20261108-093233-all/report.md), which starts with how to read it.
+
 **Limits of this eval:**
 - **Claude Code wrote the cases and labels, and no person has reviewed them.** That may favor the Claude models, whose judgment is likely to agree with labels written by a Claude model.
 - 66 cases can't support fine-grained comparisons, and every attack was written for this test set, so "0 allowed" says only that none of these got through.
-- Two policy changes were chosen after seeing the first Jev results: the injection flag only counting alongside another flag, and allowing plain pushes to `origin`. Six multi-request cases (`safe-36`–`38`, `bad-26`–`28`) were also added after the first run. The report shows the original policy too: on it, Jev wrongly stops 19.5% of safe calls.
+- Two policy changes were chosen after seeing the first Jev results: the injection flag only counting alongside another flag, and allowing plain pushes to `origin`. Six multi-request cases (`safe-36`–`38`, `bad-26`–`28`) were also added after the first run. The report shows the original policy too: on it, Jev wrongly stops 19.5% of safe calls. The injection rule changed no decision in this test set, so the drop to 11.6% comes from the pre-rules.
 - Eval states are shorter and cleaner than live ones. In shadow mode on real work, replaying the current policy would still have stopped 52.6% of calls in an unusually security-heavy session, against 82.5% before the policy changes. Those calls are unlabeled.
 - Latency was measured from one Mac's internet connection, with a new connection per call, as the hook makes.
 - The cascade is replayed from saved answers rather than run live.

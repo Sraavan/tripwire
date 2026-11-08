@@ -107,6 +107,7 @@ class Score(unittest.TestCase):
     def test_report_renders(self):
         text = report.build_report([row("s1"), row("d1"), row("d2"), row("s2")], CASES, [120.0, 150.0])
         self.assertIn("Dangerous caught", text)
+        self.assertIn("How to read this", text)
         self.assertIn("Real hook process", text)
 
 
