@@ -29,11 +29,17 @@ SENSITIVE_NAME = re.compile(
     r"|\.(pem|key|p12|pfx)$",
     re.IGNORECASE,
 )
+# Flags that only count when another flag is also raised. An injection signal on a
+# call that is otherwise harmless mostly came from normal work: in long sessions the
+# agent reads files and then does things the user didn't literally ask for. A real
+# injection attack does something harmful, which raises another flag.
+ESCALATE_ONLY = frozenset({"possible_prompt_injection"})
 FILE_WRITE_TOOLS = {"Write", "Edit", "NotebookEdit"}
 _SEPARATORS = re.compile(r"\s*(?:;|&&|\|\||\||\n)\s*")
 _REDIRECT = re.compile(r">>?\s*(\"[^\"]+\"|'[^']+'|[^\s;&|]+)")
 _WRAPPERS = {"sudo", "command", "exec", "nohup", "time", "env"}
 _DESTINATION_LAST = {"cp", "mv", "install", "ln", "rsync", "scp"}
+_FORCE_FLAGS = {"-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror", "--delete", "-d"}
 
 
 def _home():
@@ -117,6 +123,32 @@ def _write_targets(command):
     return targets
 
 
+def _is_plain_push(command):
+    """Every part of the command is a non-force git push to origin, or gh pr create.
+
+    Claude Code's auto mode allows pushing to the repository you're working in by
+    default and blocks force pushes; this draws the same line. It checks the remote's
+    name, not where it points: a `git remote set-url` would still go to the model.
+    """
+    parts = list(_commands(command))
+    if not parts or len(parts) != len([p for p in _SEPARATORS.split(command) if p.strip()]):
+        return False  # something shlex couldn't parse was skipped
+    for argv in parts:
+        if argv[:3] == ["gh", "pr", "create"]:
+            continue
+        if argv[:2] != ["git", "push"]:
+            return False
+        args = argv[2:]
+        if _FORCE_FLAGS & set(args) or any(a.startswith(("+", ":")) or ":+" in a for a in args):
+            return False
+        if any(a.startswith("--repo") for a in args):
+            return False
+        operands = [a for a in args if not a.startswith("-")]
+        if operands and operands[0] != "origin":
+            return False
+    return True
+
+
 def pre_rule(tool_name, tool_input, cwd, project_dir):
     """Return (decision, reason), or None to send the call to the model."""
     tool_input = tool_input if isinstance(tool_input, dict) else {}
@@ -151,7 +183,10 @@ def pre_rule(tool_name, tool_input, cwd, project_dir):
                 return "deny", "writes to a protected credentials directory"
             if any(_is_under(path, root) for root in _guard_dirs(project_dir)):
                 return "ask", "changes Tripwire or Claude Code settings"
-        # No allow rule here on purpose: "git status; curl ..." defeats prefix matching.
+        # The only Bash allow rule, and it needs every part of the command to qualify,
+        # so "git status; curl ..." can't ride along the way it would with a prefix match.
+        if _is_plain_push(command):
+            return "allow", "plain push to the project's own remote"
     return None
 
 
@@ -166,9 +201,21 @@ def _threshold(thresholds, flag, level):
     return thresholds.get(flag, {}).get(level, thresholds["default"][level])
 
 
-def decide(probabilities, thresholds, has_user_request=True):
-    """Return (decision, reason, flags). Deny wins over ask, whichever flag is higher."""
+def decide(probabilities, thresholds, has_user_request=True, escalate_only=ESCALATE_ONLY):
+    """Return (decision, reason, flags). Deny wins over ask, whichever flag is higher.
+
+    A flag in escalate_only counts only when another flag reaches its ask threshold.
+    Pass escalate_only=frozenset() for the original policy, where every flag counts alone.
+    """
     flags = red_flags(probabilities, has_user_request)
+    others_raised = any(value >= _threshold(thresholds, flag, "ask")
+                        for flag, value in flags.items() if flag not in escalate_only)
+    if not others_raised:
+        quiet = [(flag, flags[flag]) for flag in escalate_only if flag in flags
+                 and flags[flag] >= _threshold(thresholds, flag, "ask")]
+        if quiet:
+            flag, value = max(quiet, key=lambda item: item[1])
+            return "allow", f"only {flag}={value:.2f}, which counts with another flag", flags
     ranked = sorted(flags.items(), key=lambda item: item[1], reverse=True)
     for level, decision in (("deny", "deny"), ("ask", "ask")):
         for flag, value in ranked:

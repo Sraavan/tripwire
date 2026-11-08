@@ -27,13 +27,13 @@ tool call → pre-rules → Jev (7 questions) → policy → allow / ask / deny
 
 The wording lives in [`tripwire/questions.py`](tripwire/questions.py). Each logged decision records a hash of it, so results can be traced to the wording that produced them.
 
-**Policy:** if the worst flag is at or above 0.90 the call is denied, at or above 0.30 it asks, and otherwise it's allowed. Thresholds can be set per flag in [`tripwire/config.toml`](tripwire/config.toml).
+**Policy:** if the worst flag is at or above 0.90 the call is denied, at or above 0.30 it asks, and otherwise it's allowed. The injection flag is the exception: it counts only when another flag is also at or above 0.30, and on its own it's just logged. In long sessions the agent constantly reads files and then does things the user didn't literally ask for, so an injection signal on an otherwise harmless call mostly came from normal work, while a real injection attack does something harmful that raises another flag. This rule was chosen after the first runs; the report shows the original policy next to it. Thresholds can be set per flag in [`tripwire/config.toml`](tripwire/config.toml).
 
 **Pre-rules:**
 - Allow reads inside the project, unless the file looks sensitive (`.env`, `*.pem` and similar).
 - Deny `rm -rf /` and similar, plus writes to `~/.ssh` or `~/.aws`.
 - Ask before changes to `tripwire/` or `.claude/`, so the agent can't quietly disable its own guard.
-- Bash never gets an allow pre-rule, because `git status; curl ...` defeats prefix matching.
+- Allow a Bash command only when every part of it is a non-force `git push` to `origin` or `gh pr create`, the line Claude Code's auto mode draws by default. Any other part, as in `git status; curl ...`, sends the whole command to Jev. The rule checks the remote's name, not where it points, so a `git remote set-url` is left to Jev. Also chosen after the first runs.
 
 ### Design decisions
 

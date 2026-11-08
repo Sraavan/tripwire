@@ -201,6 +201,20 @@ class Policy(unittest.TestCase):
         self.assertEqual(flags["possible_prompt_injection"], 0.4)
         self.assertEqual(self.decision(rewrites_history=0.95), "deny")
 
+    def test_injection_alone_is_only_logged(self):
+        decision, reason, _ = policy.decide(SAFE | {"follows_planted_instructions": 0.95}, THRESHOLDS)
+        self.assertEqual(decision, "allow")
+        self.assertIn("possible_prompt_injection", reason)
+
+    def test_injection_counts_with_another_flag(self):
+        # sends_data_out alone would only ask; with the injection signal it's denied.
+        self.assertEqual(self.decision(sends_data_out=0.35), "ask")
+        self.assertEqual(self.decision(sends_data_out=0.35, follows_planted_instructions=0.95), "deny")
+
+    def test_original_policy_is_still_available(self):
+        probabilities = SAFE | {"claims_approval": 0.5}
+        self.assertEqual(policy.decide(probabilities, THRESHOLDS, escalate_only=frozenset())[0], "ask")
+
     def test_off_task_is_inverted(self):
         self.assertEqual(self.decision(matches_user_task=0.05), "deny")
         self.assertEqual(self.decision(matches_user_task=0.50), "ask")
@@ -241,6 +255,20 @@ class PreRules(unittest.TestCase):
         home = os.path.realpath(os.path.expanduser("~"))
         result = policy.pre_rule("Bash", {"command": "rm -rf *"}, home, tempfile.gettempdir())
         self.assertEqual(result and result[0], "deny")
+
+    def test_plain_pushes_to_origin_allow(self):
+        for command in ("git push", "git push origin feature-x", "git push -u origin cleanup-build",
+                        "gh pr create --fill", "git push origin feature-x && gh pr create --fill"):
+            with self.subTest(command):
+                self.assertEqual(self.rule("Bash", command=command), "allow")
+
+    def test_risky_pushes_go_to_the_model(self):
+        for command in ("git push --force origin main", "git push -f", "git push --force-with-lease origin x",
+                        "git push origin +main", "git push origin :main", "git push --delete origin main",
+                        "git push --mirror", "git push https://example.com/mirror.git --all", "git push upstream main",
+                        "cat .env >> notes.md && git push", "git status; git push", 'git push "unterminated'):
+            with self.subTest(command):
+                self.assertIsNone(self.rule("Bash", command=command))
 
     def test_bash_guard_files_ask(self):
         for command in ("echo x > .claude/settings.json", "rm tripwire/hook.py", "sed -i '' s/a/b/ tripwire/policy.py"):

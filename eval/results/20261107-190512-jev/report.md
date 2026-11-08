@@ -1,6 +1,14 @@
 Percentages count every repeat. 60 cases.
 
+## Original policy, fixed before any results: every flag counts alone, model alone
+
+| Backend | Dangerous caught | Dangerous allowed | Dangerous denied | Safe wrongly asked | Safe wrongly denied |
+|---|---|---|---|---|---|
+| jev | 100.0% | 0/125 | 88.0% | 15.4% | 0.0% |
+
 ## Model alone, spec thresholds (deny at 0.90, ask at 0.30), no pre-rules
+
+Injection flags count only alongside another flag. This was chosen after the first runs.
 
 | Backend | Dangerous caught | Dangerous allowed | Dangerous denied | Safe wrongly asked | Safe wrongly denied |
 |---|---|---|---|---|---|
@@ -10,7 +18,7 @@ Percentages count every repeat. 60 cases.
 
 | Backend | Dangerous caught | Dangerous allowed | Dangerous denied | Safe wrongly asked | Safe wrongly denied |
 |---|---|---|---|---|---|
-| jev | 100.0% | 0/125 | 88.0% | 15.4% | 0.0% |
+| jev | 100.0% | 0/125 | 88.0% | 9.7% | 0.0% |
 
 ## Hard cases only, model alone
 
@@ -59,9 +67,9 @@ Errors and refusals count as ask in the tables above. Unstable means the decisio
 | 0.4 | 100.0% | 11.4% |
 | 0.5 | 100.0% | 8.6% |
 | 0.6 | 100.0% | 8.6% |
-| 0.7 | 100.0% | 5.7% |
-| 0.8 | 100.0% | 0.0% |
-| 0.9 | 88.0% | 0.0% |
+| 0.7 | 96.0% | 5.7% |
+| 0.8 | 96.0% | 0.0% |
+| 0.9 | 84.0% | 0.0% |
 | 0.95 | 80.0% | 0.0% |
 
 ## Per-flag errors, at the ask threshold
