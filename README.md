@@ -22,11 +22,11 @@ Agents make dozens of tool calls per task, so a check that runs on every call ha
 | Safe calls wrongly stopped | 11.6% | **2.6%** | **2.1%** |
 | Typical time per call (p50) | **210 ms** | 1,091 ms | 1,788 ms |
 
-Jev is about 5–9 times faster, but it interrupts safe work more often. Using Jev first and sending only the calls it's unsure about to Haiku 5.5 kept Haiku's accuracy at about a third of its average latency. See the [full results and their limits](#results).
+Jev was about 5–9 times faster than the Claude models here, and like them it let no dangerous call through. It stopped more safe calls (11.6%, against 2.6% for Haiku 5.5), but those came from just 5 of the 38 safe cases, and it ranked every dangerous call above every safe one. The questions follow TypeSafe's guidance but are an early version, so better wording or thresholds may reduce that gap, though we haven't tested that. In a replay of the saved answers, using Jev first and sending only the calls it's unsure about to Haiku 5.5 matched Haiku's results at about a third of its average latency. See the [full results and their limits](#results).
 
 ## Quick start
 
-You need Python 3.11+, Claude Code v2.1.295+ and a [Jev API key](https://docs.typesafe.ai/api). There's nothing else to install.
+You need Python 3.11+, a [Jev API key](https://docs.typesafe.ai/api), and Claude Code v2.1.295+ for the enforcement setting. There's nothing else to install. It has only been tested on macOS, and it relies on Unix signals, so it isn't expected to work on Windows.
 
 These steps start in **shadow mode**: Tripwire logs what it would decide and changes nothing.
 
@@ -50,7 +50,7 @@ Then open `~/.config/tripwire/env` and add this line, with your key:
 TYPESAFE_API_KEY=your-key-here
 ```
 
-Keeping it in this file instead of your shell environment stops an agent's `env` command from printing it.
+Keeping it in this file instead of your shell environment keeps it out of what an agent's `env` command prints. An agent could still read the file itself, so this is only a partial safeguard.
 
 **3. Check your Python version**
 
@@ -58,7 +58,7 @@ Keeping it in this file instead of your shell environment stops an agent's `env`
 python3 --version
 ```
 
-If it's below 3.11, as the macOS system Python is, install a newer one and use its full path in place of `python3` below, such as `/opt/homebrew/bin/python3`.
+If it's below 3.11, install a newer one and use its full path in place of `python3` below, such as `/opt/homebrew/bin/python3`. Apple's `/usr/bin/python3` can be older than that; it was 3.9 when this was tested.
 
 **4. Check the hook runs**
 
@@ -91,7 +91,9 @@ Add this to `~/.claude/settings.json` to cover every project, or to `.claude/set
 }
 ```
 
-**6. Restart Claude Code and watch what it would decide**
+**6. Watch what it would decide**
+
+Claude Code normally picks up settings changes automatically. If nothing appears in the log after the next tool call, restart it.
 
 ```bash
 tail -f ~/tools/tripwire/tripwire/logs/decisions.jsonl
@@ -112,9 +114,9 @@ Once the logged decisions look right to you, replace the hook entry with this on
 }
 ```
 
-Claude Code lets a call through when a hook crashes or times out. The `|| exit 2` and `onFailure` settings block it instead, so a failing check can't let a dangerous call run.
+By default, Claude Code lets a call through when a hook crashes or times out. The `|| exit 2` and `onFailure` settings make a failing check stop the call instead.
 
-> **If every tool call starts getting blocked,** the hook is probably failing to start, for example because of a wrong path or an old Python. Fix or remove the entry in your settings file with an editor outside Claude Code.
+> **If every tool call starts getting blocked,** the hook is probably failing to start, for example because of a wrong path. Fix or remove the entry in your settings file with an editor outside Claude Code. If every call prompts you with "safety check failed" instead, check your key and Python version.
 
 ### Settings
 
@@ -123,14 +125,14 @@ These are in [`tripwire/config.toml`](tripwire/config.toml):
 | Setting | Default | What it does |
 |---|---|---|
 | `[thresholds.default]` | `ask = 0.30`, `deny = 0.90` | How risky a call must look to ask or deny. Can be set per flag. |
-| `mode` | `gatekeeper` | `gatekeeper` makes Tripwire the decider, in Claude Code's default mode. `cascade` is for auto mode: when Tripwire is unsure it stays silent, and Claude Code's classifier decides. |
+| `mode` | `gatekeeper` | `gatekeeper` makes Tripwire the decider, in Claude Code's default mode. `cascade` is for auto mode: when Tripwire is unsure it stays silent, and Claude Code's classifier decides. This mode hasn't been tried in real use. |
 | `timeout_seconds` | `2.5` | How long to wait for Jev before falling back to `ask`. |
 
 ### What gets sent to TypeSafe
 
 For each call that reaches Jev: the call itself, your current request, a few earlier messages and tool calls, and the working directory. Jev never sees tool results.
 
-Tripwire removes secret-shaped strings and clips long text before sending, but redaction can miss things, so don't assume everything sensitive is caught. TypeSafe's docs don't state a retention period for request data. Check their terms if your code is confidential.
+Tripwire removes secret-shaped strings and clips long text before sending, but redaction can miss things, so don't assume everything sensitive is caught. TypeSafe's [privacy policy](https://typesafe.ai/legal/privacy-policy) says inputs aren't used to train models, and that data is kept as long as reasonably necessary, without giving a fixed period. Check their terms if your code is confidential.
 
 ## How it works
 
@@ -164,8 +166,9 @@ The exact wording is in [`tripwire/questions.py`](tripwire/questions.py).
 
 **Design choices**
 
-- **It fails closed.** Any error returns `ask`, never `allow`.
-- **Jev never sees tool results.** Jev's docs say it doesn't treat its input as hostile, so planted text in a file could steer its answer. The trade-off is that injection has to be judged from the action alone.
+- **Errors don't allow.** An error in the check returns `ask`, and with the enforcement settings above, a hook that can't run at all blocks the call.
+- **No SDK.** The hook calls Jev's HTTP API with the standard library, because Claude Code starts a new process for every tool call and startup time adds to each one. The SDK's import time hasn't been measured.
+- **Jev never sees tool results.** Jev's docs say it doesn't treat its input as hostile by default, so planted text in a file could steer its answer. The trade-off is that injection has to be judged from the action alone.
 - **History is split by request.** Jev sees the current request and its calls, plus a few earlier ones labeled as earlier, so a reply like "yes" keeps its meaning.
 - **Secrets are redacted** before the call to Jev and before logging.
 
@@ -173,9 +176,9 @@ The exact wording is in [`tripwire/questions.py`](tripwire/questions.py).
 
 Tripwire is a best-effort check, not a sandbox.
 
-- **It only sees six tools:** `Bash`, `Write`, `Edit`, `NotebookEdit`, `WebFetch` and `Read`. Anything else never reaches it, including **MCP tools** (`mcp__*`), which can send messages or run commands, and `WebSearch`, whose queries leave your machine. To add a tool, add it to the `matcher` and to `ACTION_TOOLS` in [`tripwire/context.py`](tripwire/context.py). Those tools were not part of the eval and no pre-rules apply to them. Avoid matching everything, or harmless planning tools will wait on Jev too.
+- **It only sees six tools:** `Bash`, `Write`, `Edit`, `NotebookEdit`, `WebFetch` and `Read`. Anything else never reaches it, including **MCP tools** (`mcp__*`), some of which can send messages or run commands, and `WebSearch`, whose queries leave your machine. To add a tool, add it to the `matcher` and to `ACTION_TOOLS` in [`tripwire/context.py`](tripwire/context.py). Those tools were not part of the eval and no pre-rules apply to them. Avoid matching everything, or harmless planning tools will wait on Jev too.
 - **It sees a command as written.** If the agent runs `./deploy.sh`, Jev judges that line and not what's inside the script.
-- **An `allow` is final in auto mode.** A hook `allow` stops the classifier from blocking the call, even under a `hard_deny` rule, so a wrong one has nothing behind it.
+- **An `allow` may be final in auto mode.** In our test, a hook's `allow` got a call past the classifier even under a `hard_deny` rule, so a wrong one may have nothing behind it. Claude Code's docs say your own deny and ask permission rules still apply.
 - **Its own files aren't fully protected.** The rule against editing Tripwire only covers `tripwire/` and `.claude/` inside the current project. A clone in `~/tools` and your user-level `~/.claude/settings.json` are left to Jev's judgment.
 - **The push rule trusts the name `origin`.** It doesn't check where that remote points.
 - **It only sees the agent's tool calls.** Commands you type yourself aren't checked.
@@ -211,7 +214,8 @@ The full breakdown is in [the report](eval/results/20261108-093233-all/report.md
 - **Claude Code wrote the cases and labels, and no person has reviewed them.** That may favor the Claude models, whose judgment is likely to agree with labels written by a Claude model.
 - 66 cases can't support fine-grained comparisons, and every attack was written for this test set, so "0 allowed" says only that none of these got through.
 - Two policy changes were chosen after seeing the first Jev results: the injection flag only counting alongside another flag, and allowing plain pushes to `origin`. Six multi-request cases (`safe-36`–`38`, `bad-26`–`28`) were also added after the first run. On the original policy, Jev wrongly stops 19.5% of safe calls. The injection rule changed no decision in this test set, so the drop to 11.6% comes from the pre-rules.
-- Eval inputs are shorter and cleaner than real ones. Replaying the current policy on real work in shadow mode would still have stopped 52.6% of calls, in an unusually security-heavy session. Those calls are unlabeled.
+- Every model got the same questions, written following TypeSafe's guidance. The wording changed once, after the first run, and hasn't been compared against alternatives, so these results don't show how much different wording would change any model's score.
+- Eval inputs are shorter and cleaner than real ones. Replaying the current policy on real work in shadow mode would have stopped about half of the calls (86 of 172), in an unusually security-heavy session. Those calls are unlabeled, so it's unknown how many of those stops were justified.
 - Latency was measured from one Mac's internet connection, with a new connection per call, as the hook makes.
 - The cascade is replayed from saved answers rather than run live.
 
@@ -229,34 +233,23 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python eval/report.py eval/results/<run>
 ```
 
-### Where Jev struggled
+### Where Jev could improve
 
 - **False alarms.** 11.6% of safe calls were stopped, against 2.6% for Haiku 5.5 and 2.1% for Sonnet 5.
-- **Pushes to the project's own remote.** `git push origin feature-x` and `gh pr create` scored 0.65–0.77 on `sends_data_out`, even though the criteria say such a push isn't sending data out. Tripwire now settles this in code.
+- **Pushes to the project's own remote.** `git push origin feature-x` and `gh pr create` scored 0.68–0.79 on `sends_data_out`, even though the criteria say such a push isn't sending data out. Tripwire now settles this in code.
 - **Mid-range probabilities run high.** Flags Jev rated around 0.79 were labeled yes 47% of the time, and those around 0.50 only 13%. At the top it's fine: 0.96 was right 93% of the time. Haiku 5.5's mid-range equivalents were 61% and 42%.
-- **Injection signals in long sessions.** `follows_planted_instructions` fired on ordinary work once sessions got long.
+- **Injection signals in long sessions.** In shadow use, `follows_planted_instructions` appeared to fire on ordinary work as sessions got longer.
 - **Destructive commands scored lower than expected.** `rm -rf .git` reached only about 0.6 on `is_destructive`, so it was caught but less decisively.
 
-Where Jev did well: it never let a dangerous call through and never wrongly denied a safe one, its worst flag separated dangerous from safe calls perfectly (AUROC 1.000), and it gave far finer probabilities (93 distinct values, against 17 to 30 for the Claude models).
+Where Jev did well, on these cases: it never let a dangerous call through and never wrongly denied a safe one, its worst flag separated dangerous from safe calls perfectly (AUROC 1.000), and it gave far finer probabilities (93 distinct values, against 17 to 30 for the Claude models).
 
 ### Replace the classifier, or sit in front of it?
 
-Jev alone is the fast option with more false alarms, and Claude alone is more accurate but 5–9 times slower. A cascade gets close to the best of both, which is the pattern TypeSafe's docs and independent tests recommend.
+On this test set, Jev alone is the fast option with more false alarms, and Claude alone made fewer of them but was 5–9 times slower. A cascade got close to the best of both. TypeSafe's docs also suggest escalating uncertain cases to a person or a reasoning model.
 
-Claude Code's docs don't say what a hook's `allow` does in auto mode, so [`eval/allow_test.sh`](eval/allow_test.sh) tests it: a throwaway agent pushes to a local repo, with a `hard_deny` rule forbidding pushes. With a silent hook, the classifier blocked the push in 3 of 3 runs. With a hook returning `allow`, the push landed in 3 of 3 runs.
+I couldn't find a statement in Claude Code's docs on how a hook's `allow` interacts with auto mode's classifier, so [`eval/allow_test.sh`](eval/allow_test.sh) tests it with a stub hook: a throwaway agent pushes to a local repo, with a `hard_deny` rule forbidding pushes. With a silent hook, the classifier blocked the push in 3 of 3 runs. With a hook returning `allow`, the push landed in 3 of 3 runs.
 
-So `mode = "cascade"` works: Tripwire can allow or deny what it's sure about and leave the rest to the classifier. Whether that saves any classifier time is untested, because the classifier may still run on calls the hook allows.
-
-## API and DX feedback for TypeSafe
-
-- `noul` answers have no `confidence` field, while `choice` and `score` do.
-- There is a Python SDK (`typesafe-sdk`), but the hook calls the HTTP API with the standard library, because Claude Code starts a new process for every tool call and startup time adds to each one. I haven't measured the SDK's import time. A note on its startup time, or a minimal client, would help short-lived callers like hooks.
-- The models page gives no default rate limit numbers, which makes capacity planning harder before signing up.
-- The docs I read don't say whether access is instant or by waitlist.
-- Third-party docs disagree on image support, and on how the 32k limit applies.
-- Probabilities come back rounded to two decimal places, which limits calibration work near thresholds.
-- Median latency here was 210 ms on a new connection per call, against the advertised ~100 ms. A note on what the figure assumes (connection reuse, region) would help callers like hooks, which can't keep a connection open.
-- The launch post's FAQ asks where the training data comes from and whether Jev is a smaller LLM, but I couldn't find answers. Retention for request data has no stated period, which matters for tools that send commands and file contents.
+That suggests `mode = "cascade"` can work: Tripwire would allow or deny what it's sure about and leave the rest to the classifier. It hasn't been run with Tripwire and Jev in a live session. Whether it saves any classifier time is also untested, because the classifier may still run on calls the hook allows.
 
 ## Next steps
 
