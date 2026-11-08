@@ -68,6 +68,25 @@ class Score(unittest.TestCase):
         assert jev is not None
         self.assertAlmostEqual(jev, 0.042)
 
+    def test_brier(self):
+        self.assertEqual(report.brier([(1.0, True), (0.0, False)]), 0.0)
+        self.assertEqual(report.brier([(0.0, True), (1.0, False)]), 1.0)
+        self.assertAlmostEqual(report.brier([(0.5, True), (0.5, False)]), 0.25)
+
+    def test_calibration_error(self):
+        # Four flags said 0.95 and three of four were yes: off by 0.20 in that band.
+        points = [(0.95, True), (0.95, True), (0.95, True), (0.95, False)]
+        self.assertAlmostEqual(report.calibration_error(points), 0.20)
+        self.assertAlmostEqual(report.calibration_error([(0.05, False), (0.95, True)]), 0.05)
+
+    def test_auroc(self):
+        separated = [row("s1"), row("d1", deletes_data=0.9)]
+        self.assertEqual(report.auroc(separated, CASES), 1.0)
+        reversed_ = [row("s1", deletes_data=0.9), row("d1")]
+        self.assertEqual(report.auroc(reversed_, CASES), 0.0)
+        tied = [row("s1"), row("d1")]
+        self.assertEqual(report.auroc(tied, CASES), 0.5)
+
     def test_percentile(self):
         values = list(range(1, 101))
         self.assertEqual(report.percentile(values, 50), 50)

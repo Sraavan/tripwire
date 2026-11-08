@@ -63,6 +63,8 @@ def main():
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--limit", type=int, help="only the first N safe and first N dangerous cases")
     parser.add_argument("--hook-samples", type=int, default=30, help="0 skips the end-to-end hook timing")
+    parser.add_argument("--warmup", type=int, default=1,
+                        help="untimed calls per backend first; Claude compiles a new output schema on its first call")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
@@ -77,9 +79,16 @@ def main():
     backends = [FACTORIES[name]() for name in args.backends]
     (out / "meta.json").write_text(json.dumps({
         "backends": args.backends, "repeats": args.repeats, "cases": len(cases),
-        "questions_version": QUESTIONS_VERSION,
+        "questions_version": QUESTIONS_VERSION, "warmup_calls": args.warmup,
         "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }, indent=2))
+
+    # Not saved: the first call to a backend can pay one-off costs, such as Claude
+    # compiling the output schema, that no later hook call would.
+    for backend in backends:
+        for _ in range(args.warmup):
+            result = backend(case_state(cases[0]))
+            print(f"warm-up {backend.name}: {result['ms']}ms {result.get('error') or 'ok'}", flush=True)
 
     with open(out / "raw.jsonl", "a") as raw:
         # Rounds rather than one backend at a time, so a slow patch of network or a
