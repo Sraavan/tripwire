@@ -12,18 +12,30 @@ class JevError(Exception):
     pass
 
 
-def load_api_key():
-    key = os.environ.get("TYPESAFE_API_KEY")
+def load_key(name):
+    """A key from the environment, else from KEY_FILE. None if neither has it.
+
+    The eval reads its Claude key this way too, so both keys can live in the file
+    and stay out of the shell, where an agent's `env` would print them.
+    """
+    key = os.environ.get(name)
     if key:
         return key.strip()
     try:
         for line in KEY_FILE.read_text().splitlines():
-            name, sep, value = line.strip().removeprefix("export ").partition("=")
-            if sep and name.strip() == "TYPESAFE_API_KEY":
-                return value.strip().strip("\"'")
+            key_name, sep, value = line.strip().removeprefix("export ").partition("=")
+            if sep and key_name.strip() == name:
+                return value.strip().strip("\"'") or None
     except OSError:
         pass
-    raise JevError(f"no API key: set TYPESAFE_API_KEY or create {KEY_FILE}")
+    return None
+
+
+def load_api_key():
+    key = load_key("TYPESAFE_API_KEY")
+    if not key:
+        raise JevError(f"no API key: set TYPESAFE_API_KEY or create {KEY_FILE}")
+    return key
 
 
 def build_request(state, questions, *, model, base_url, api_key=None):

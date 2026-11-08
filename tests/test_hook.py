@@ -11,11 +11,13 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tripwire"))
 
 import context  # noqa: E402
+import jev  # noqa: E402
 import policy  # noqa: E402
 from questions import QUESTIONS  # noqa: E402
 
@@ -263,6 +265,33 @@ class PreRules(unittest.TestCase):
 
     def test_webfetch_goes_to_the_model(self):
         self.assertIsNone(self.rule("WebFetch", url="https://example.com"))
+
+
+class KeyFile(unittest.TestCase):
+    def setUp(self):
+        handle = tempfile.NamedTemporaryFile("w", delete=False)
+        handle.write('TYPESAFE_API_KEY=jev-from-file\nexport ANTHROPIC_API_KEY="claude-from-file"\nEMPTY_KEY=\n')
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        patcher = mock.patch.object(jev, "KEY_FILE", Path(handle.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_reads_each_key_from_the_file(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(jev.load_key("TYPESAFE_API_KEY"), "jev-from-file")
+            self.assertEqual(jev.load_key("ANTHROPIC_API_KEY"), "claude-from-file")
+            self.assertIsNone(jev.load_key("EMPTY_KEY"))
+            self.assertIsNone(jev.load_key("MISSING_KEY"))
+
+    def test_environment_comes_first(self):
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "claude-from-env"}, clear=True):
+            self.assertEqual(jev.load_key("ANTHROPIC_API_KEY"), "claude-from-env")
+
+    def test_missing_jev_key_raises(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(jev, "KEY_FILE", Path("/nonexistent")):
+            with self.assertRaises(jev.JevError):
+                jev.load_api_key()
 
 
 class Context(unittest.TestCase):

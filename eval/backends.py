@@ -80,6 +80,10 @@ class ClaudeBackend:
         self.anthropic = anthropic
         self.name = model
         self.effort = effort
+        # From the environment, else from the same key file as the Jev key.
+        self.api_key = jev.load_key("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise SystemExit(f"no Claude key: set ANTHROPIC_API_KEY or add it to {jev.KEY_FILE}")
 
     def __call__(self, state):
         output_config = {"format": {"type": "json_schema", "schema": SCHEMA}}
@@ -87,7 +91,7 @@ class ClaudeBackend:
             output_config["effort"] = self.effort
         # A new client per call gives a new connection, as a hook process would have.
         # No retries, so the latency numbers are for a single attempt.
-        client = self.anthropic.Anthropic(max_retries=0, timeout=EVAL_TIMEOUT)
+        client = self.anthropic.Anthropic(api_key=self.api_key, max_retries=0, timeout=EVAL_TIMEOUT)
         started = time.perf_counter()
         try:
             response = client.messages.create(

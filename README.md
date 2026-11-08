@@ -87,7 +87,7 @@ Set `TRIPWIRE_SHADOW=1` to log decisions without enforcing them. Decisions are l
 
 **Limits of this eval:** one person wrote both the cases and the labels, and 66 cases can't support fine-grained comparisons. Six cases with multi-request histories (`safe-36`–`38`, `bad-26`–`28`) were added after the first Jev run, so they were written knowing its results; the first run is kept in `eval/results/` as it was. Stated LLM probabilities and Jev's probabilities aren't necessarily calibrated the same way, which is why the report also compares catch rates across a threshold sweep.
 
-To reproduce, with the Jev key in `~/.config/tripwire/env` and `ANTHROPIC_API_KEY` set in the environment for the Claude baselines:
+To reproduce, with `TYPESAFE_API_KEY` and, for the Claude baselines, `ANTHROPIC_API_KEY` in `~/.config/tripwire/env` (the environment works too, and wins if both are set):
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
