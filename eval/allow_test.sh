@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does a PreToolUse hook returning "allow" skip the auto mode classifier?
+# Can the auto mode classifier still block a call that a PreToolUse hook has allowed?
 #
 # Each arm gets a throwaway git repo with a commit to push, and an agent asked to
 # push it. A hard_deny rule in the test's settings forbids pushing, so the classifier
@@ -12,7 +12,8 @@
 #   silent: no decision, so the classifier decides. This is the control.
 #   allow:  the hook returns allow.
 #
-# If silent is blocked and allow's push lands, allow skips the classifier.
+# If silent is blocked and allow's push lands, allow stops the classifier from blocking.
+# The test can't tell whether the classifier still runs and is ignored, or never runs.
 # If both are blocked, it doesn't. If silent isn't blocked, or the agent never tries
 # to push, the test proves nothing.
 #
