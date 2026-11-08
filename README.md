@@ -118,6 +118,33 @@ By default, Claude Code lets a call through when a hook crashes or times out. Th
 
 > **If every tool call starts getting blocked,** the hook is probably failing to start, for example because of a wrong path. Fix or remove the entry in your settings file with an editor outside Claude Code. If every call prompts you with "safety check failed" instead, check your key and Python version.
 
+### Run modes
+
+There are two separate settings. **Shadow** controls whether Tripwire acts at all, and **`mode`** controls what it does with calls it's unsure about.
+
+**Does Tripwire act?** Set by `TRIPWIRE_SHADOW=1` in the hook command.
+
+| | What happens |
+|---|---|
+| Shadow on | It only logs what it would decide. Claude Code behaves as if Tripwire weren't there. |
+| Shadow off | Its decisions take effect. |
+
+**When enforcing, what happens to unsure calls?** Set by `mode` in [`tripwire/config.toml`](tripwire/config.toml).
+
+| Jev's verdict | `gatekeeper` (default) | `cascade` |
+|---|---|---|
+| Clearly safe | Allowed | Allowed |
+| Clearly dangerous | Denied | Denied |
+| Unsure | Prompts you | Stays silent, and Claude Code decides as if there were no hook |
+
+In `cascade`, what Claude Code does next depends on its own permission mode: in auto mode its classifier reviews the call, and in default mode you get its normal permission handling.
+
+| You want | Use |
+|---|---|
+| To see what it would do, with no risk | Shadow on |
+| Tripwire to decide, and to answer the unsure calls yourself | Shadow off, `gatekeeper`, Claude Code in default mode |
+| Tripwire in front of auto mode's classifier | Shadow off, `cascade`, Claude Code in auto mode. This hasn't been tried in real use. |
+
 ### Settings
 
 These are in [`tripwire/config.toml`](tripwire/config.toml):
@@ -125,7 +152,7 @@ These are in [`tripwire/config.toml`](tripwire/config.toml):
 | Setting | Default | What it does |
 |---|---|---|
 | `[thresholds.default]` | `ask = 0.30`, `deny = 0.90` | How risky a call must look to ask or deny. Can be set per flag. |
-| `mode` | `gatekeeper` | `gatekeeper` makes Tripwire the decider, in Claude Code's default mode. `cascade` is for auto mode: when Tripwire is unsure it stays silent, and Claude Code's classifier decides. This mode hasn't been tried in real use. |
+| `mode` | `gatekeeper` | What happens to unsure calls. See [run modes](#run-modes). |
 | `timeout_seconds` | `2.5` | How long to wait for Jev before falling back to `ask`. |
 
 ### What gets sent to TypeSafe
@@ -206,6 +233,8 @@ The whole Jev hook process, including Python startup, took 286 ms at the median 
 | Haiku 5.5 alone | 100% | 0 of 140 | 2.6% | 1,091 / 1,212 ms |
 | **Jev, then Haiku 5.5** | **10.9%** | **0 of 140** | **2.6%** | **213 / 364 ms** |
 | Jev, then Sonnet 5 | 10.9% | 0 of 140 | 1.6% | 213 / 419 ms |
+
+This replay isn't the same as the hook's `cascade` mode. Here, unsure calls go to a Claude model. The hook can't do that today: its `cascade` mode hands unsure calls back to Claude Code, and has no results of its own.
 
 The full breakdown is in [the report](eval/results/20261108-093233-all/report.md), which starts with how to read it.
 

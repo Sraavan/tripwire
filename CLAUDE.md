@@ -100,6 +100,14 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
   - Design 1 (replace): run in default mode; Tripwire is the gatekeeper.
   - Design 2 (cascade): run in auto mode; Tripwire answers when confident, passes through when unsure so Sonnet's classifier decides; measure how many calls Jev settles itself, and whether that actually saves classifier runs.
 
+## Run modes
+
+Two separate settings, plus one similar name in the eval:
+
+- **Shadow** (`TRIPWIRE_SHADOW=1` in the hook command): log only, decisions have no effect.
+- **`mode`** (`tripwire/config.toml`), when enforcing: both allow clearly safe calls and deny clearly dangerous ones. On an unsure call, `gatekeeper` (default) prompts the user, and `cascade` exits silently so Claude Code decides as if there were no hook (its classifier in auto mode).
+- **The eval's cascade** (Jev → a Claude model) is a replay of saved answers. The hook can't call Claude, so those results don't describe `mode = "cascade"`.
+
 ## Out of scope for day one
 
 - **Calibration:** reliability diagrams; temperature scaling (`p = sigmoid(logit_diff / T)`) fit on labeled logs.
