@@ -5,7 +5,9 @@ import re
 
 MAX_USER_TEXT = 2000
 MAX_FIELD = 2000
-RECENT_CALLS = 5
+RECENT_CALLS = 5  # calls made for the current request
+EARLIER_MESSAGES = 3  # prompts before it, so a reply like "yes" keeps its meaning
+EARLIER_CALLS = 3  # calls made before it, so a file read for an earlier task stays visible
 # The transcript can be very large, so only its two ends are read.
 HEAD_BYTES = 256 * 1024
 TAIL_BYTES = 256 * 1024
@@ -121,12 +123,16 @@ def _user_text(entry):
 
 
 def read_transcript(path):
-    """Return (user prompts, tool calls). Tolerant: the format is undocumented."""
-    prompts, calls = [], []
+    """Return the session as turns: [(typed prompt, [tool calls after it])], oldest first.
+
+    A call belongs to the last prompt typed before it. Calls before any prompt go
+    in a turn whose prompt is None. Tolerant: the format is undocumented.
+    """
+    turns = []
     try:
         lines = _read_lines(path)
     except (OSError, TypeError, ValueError):
-        return prompts, calls
+        return turns
     for line in lines:
         try:
             entry = json.loads(line)
@@ -136,42 +142,55 @@ def read_transcript(path):
             continue
         text = _user_text(entry)
         if text:
-            prompts.append(text)
+            turns.append((text, []))
         elif entry.get("type") == "assistant" and not entry.get("isSidechain"):
             message = entry.get("message")
             content = message.get("content") if isinstance(message, dict) else None
             for block in content if isinstance(content, list) else []:
                 if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") in ACTION_TOOLS:
-                    calls.append((block.get("name"), block.get("input") or {}))
-    return prompts, calls
+                    if not turns:
+                        turns.append((None, []))
+                    turns[-1][1].append((block.get("name"), block.get("input") or {}))
+    return turns
 
 
-def assemble_state(prompts, calls, proposed, cwd):
-    """Return (state, has_user_request).
+def assemble_state(turns, proposed, cwd):
+    """Return (state, has_user_request). turns are as read_transcript returns them.
+
+    The current request is kept apart from earlier ones, so a call is judged
+    against what the user is asking for now, with earlier work labeled as such.
 
     Tool results are left out on purpose. Jev doesn't treat state as hostile, so
     planted text in a file could steer its answer. Auto mode's classifier drops
     them too.
     """
+    turns = [(prompt, list(calls)) for prompt, calls in turns]
     # The transcript may already hold the call being judged, or may lag behind it.
-    if calls and calls[-1] == proposed:
-        calls = calls[:-1]
+    if turns and turns[-1][1] and turns[-1][1][-1] == proposed:
+        turns[-1][1].pop()
+    current_request, current_calls = turns[-1] if turns and turns[-1][0] else (None, [])
+    earlier = turns[:-1] if current_request else turns
+    earlier_messages = [prompt for prompt, _ in earlier if prompt][-EARLIER_MESSAGES:]
+    earlier_calls = [call for _, calls in earlier for call in calls][-EARLIER_CALLS:]
+
     # Fields with nothing in them are left out: the model can read an empty list,
     # or a null request, as a signal.
     state = {}
-    if prompts:
-        state["original_user_request"] = _clip(redact(prompts[0]), MAX_USER_TEXT)
-    if len(prompts) > 1:
-        state["latest_user_message"] = _clip(redact(prompts[-1]), MAX_USER_TEXT)
-    if calls:
-        state["recent_tool_calls"] = [sanitize_call(*call) for call in calls[-RECENT_CALLS:]]
+    if current_request:
+        state["current_request"] = _clip(redact(current_request), MAX_USER_TEXT)
+    if earlier_messages:
+        state["earlier_messages"] = [_clip(redact(text), MAX_USER_TEXT) for text in earlier_messages]
+    if current_calls:
+        state["calls_for_current_request"] = [sanitize_call(*call) for call in current_calls[-RECENT_CALLS:]]
+    if earlier_calls:
+        state["earlier_calls"] = [sanitize_call(*call) for call in earlier_calls]
     state["proposed_tool_call"] = sanitize_call(*proposed)
     if cwd:
         state["working_directory"] = cwd
-    return state, bool(prompts)
+    return state, bool(current_request)
 
 
 def build_state(event):
-    prompts, calls = read_transcript(event.get("transcript_path"))
+    turns = read_transcript(event.get("transcript_path"))
     proposed = (event.get("tool_name"), event.get("tool_input") or {})
-    return assemble_state(prompts, calls, proposed, event.get("cwd"))
+    return assemble_state(turns, proposed, event.get("cwd"))

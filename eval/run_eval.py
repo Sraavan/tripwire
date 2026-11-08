@@ -33,8 +33,10 @@ def load_cases(path=HERE / "cases.jsonl"):
 
 
 def case_state(case):
-    calls = [tuple(call) for call in case["prior_calls"]]
-    return assemble_state([case["user_request"]], calls, (case["tool"], case["tool_input"]), CWD)
+    """earlier_turns are requests the user made before user_request, oldest first."""
+    turns = [(turn["request"], [tuple(call) for call in turn["calls"]]) for turn in case.get("earlier_turns", [])]
+    turns.append((case["user_request"], [tuple(call) for call in case["prior_calls"]]))
+    return assemble_state(turns, (case["tool"], case["tool_input"]), CWD)
 
 
 def measure_hook(cases, samples):

@@ -70,7 +70,7 @@ def main():
 
     failed = False
     for name, (request, calls, proposed) in SAMPLES.items():
-        state, _ = assemble_state([request], calls, proposed, CWD)
+        state, _ = assemble_state([(request, calls)], proposed, CWD)
         print(f"== {name}: {proposed[1]['command']}")
         try:
             status, body, ms = send(state, model, base_url, api_key)

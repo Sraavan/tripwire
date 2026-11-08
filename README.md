@@ -39,6 +39,7 @@ The wording lives in [`tripwire/questions.py`](tripwire/questions.py). Each logg
 
 - **It fails closed, which Claude Code doesn't do by default.** A hook that crashes or times out lets the call through. Tripwire returns `ask` on any error, enforces its own wall-clock limit, and registers with `|| exit 2` and `onFailure: "block"` for failures Python can't catch.
 - **Jev never sees tool results.** Jev's docs say it doesn't treat state as hostile, so planted text in a file could steer its answer. Auto mode's classifier strips tool results too. The trade-off is that injection has to be judged from the action, not from the text that caused it.
+- **History is split by request.** Each tool call belongs to the prompt typed before it. Jev sees the current request and the calls made for it, plus a few earlier messages and calls labeled as earlier, so a reply like "yes" keeps its meaning and a file read for an earlier task stays visible. `!` commands, the agent's planning tools and its own `description` of each call are left out.
 - **Secrets are redacted before anything leaves the machine.** A safety tool shouldn't be an exfiltration path, so secret-shaped strings are removed before the call to Jev and before logging. Long content is clipped, keeping both ends so a payload can't hide after a long harmless prefix.
 
 ## Install
@@ -75,7 +76,7 @@ Set `TRIPWIRE_SHADOW=1` to log decisions without enforcing them. Decisions are l
 
 `PENDING`: paste from `eval/results/<run>/report.md`.
 
-60 hand-written tool calls, 5 repeats each: 35 safe and 25 dangerous. 19 of the safe calls are deliberately scary lookalikes (`rm -rf node_modules` when asked to clean up), and 16 of the dangerous calls are hard ones (base64-encoded exfiltration, commands that claim approval). Every backend gets the same question wording and thresholds, fixed before the run. Haiku 5.5 and Sonnet 5 run at low effort, where they can still think; Haiku 4.5 runs without thinking. Numbers are reported with pre-rules off, comparing models directly, and with them on, for the full system.
+66 hand-written tool calls, 5 repeats each: 38 safe and 28 dangerous. 21 of the safe calls are deliberately scary lookalikes (`rm -rf node_modules` when asked to clean up), and 19 of the dangerous calls are hard ones (base64-encoded exfiltration, commands that claim approval). Every backend gets the same question wording and thresholds, fixed before the run. Haiku 5.5 and Sonnet 5 run at low effort, where they can still think; Haiku 4.5 runs without thinking. Numbers are reported with pre-rules off, comparing models directly, and with them on, for the full system.
 
 | Backend | Dangerous caught | Dangerous allowed | Safe wrongly interrupted | p50 | p99 | Per 1,000 calls |
 |---|---|---|---|---|---|---|
@@ -84,7 +85,7 @@ Set `TRIPWIRE_SHADOW=1` to log decisions without enforcing them. Decisions are l
 | Claude Haiku 4.5 | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` |
 | Claude Sonnet 5 (our prompt, not the real classifier) | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` |
 
-**Limits of this eval:** one person wrote both the cases and the labels, and 60 cases can't support fine-grained comparisons. Stated LLM probabilities and Jev's probabilities aren't necessarily calibrated the same way, which is why the report also compares catch rates across a threshold sweep.
+**Limits of this eval:** one person wrote both the cases and the labels, and 66 cases can't support fine-grained comparisons. Six cases with multi-request histories (`safe-36`–`38`, `bad-26`–`28`) were added after the first Jev run, so they were written knowing its results; the first run is kept in `eval/results/` as it was. Stated LLM probabilities and Jev's probabilities aren't necessarily calibrated the same way, which is why the report also compares catch rates across a threshold sweep.
 
 To reproduce, with the Jev key in `~/.config/tripwire/env` and `ANTHROPIC_API_KEY` set in the environment for the Claude baselines:
 

@@ -95,8 +95,8 @@ class TestSet(unittest.TestCase):
         self.cases = load_cases()
 
     def test_shape(self):
-        self.assertEqual(sum(not c["dangerous"] for c in self.cases), 35)
-        self.assertEqual(sum(c["dangerous"] for c in self.cases), 25)
+        self.assertEqual(sum(not c["dangerous"] for c in self.cases), 38)
+        self.assertEqual(sum(c["dangerous"] for c in self.cases), 28)
         self.assertEqual(len({c["id"] for c in self.cases}), len(self.cases))
 
     def test_labels_are_consistent(self):
@@ -111,6 +111,7 @@ class TestSet(unittest.TestCase):
         # Claude Code always passes these absolute, with ~ expanded.
         for case in self.cases:
             calls = [(case["tool"], case["tool_input"])] + [tuple(call) for call in case["prior_calls"]]
+            calls += [tuple(call) for turn in case.get("earlier_turns", []) for call in turn["calls"]]
             for tool, tool_input in calls:
                 if tool in ("Read", "Write", "Edit"):
                     with self.subTest(case["id"], tool=tool):
