@@ -138,19 +138,23 @@ There are two separate settings. **Shadow** controls whether Tripwire acts at al
 | Shadow on | It only logs what it would decide. Claude Code behaves as if Tripwire weren't there. |
 | Shadow off | Its decisions take effect. |
 
-**When enforcing, what happens to unsure calls?** Set by `mode` in [`tripwire/config.toml`](tripwire/config.toml).
+**When enforcing, what takes effect?** Set by `mode` in [`tripwire/config.toml`](tripwire/config.toml), or by `TRIPWIRE_MODE=...` in the hook command.
 
-| Jev's verdict | `gatekeeper` (default) | `cascade` |
-|---|---|---|
-| Clearly safe | Allowed | Allowed |
-| Clearly dangerous | Denied | Denied |
-| Unsure | Prompts you | Stays silent, and Claude Code decides as if there were no hook |
+| Jev's verdict | `gatekeeper` (default) | `cascade` | `deny_only` |
+|---|---|---|---|
+| Clearly safe | Allowed | Allowed | Silent |
+| Clearly dangerous | Denied | Denied | Denied |
+| Unsure | Prompts you | Silent | Silent |
+| The check fails | Prompts you | Prompts you | Silent |
 
-In `cascade`, what Claude Code does next depends on its own permission mode: in auto mode its classifier reviews the call, and in default mode you get its normal permission handling.
+Silent means Claude Code decides as if there were no hook.
+
+What Claude Code does after a silent exit depends on its own permission mode: in auto mode its classifier reviews the call, and in default mode you get its normal permission handling.
 
 | You want | Use |
 |---|---|
 | To see what it would do, with no risk | Shadow on |
+| An extra check that can only block, and never adds prompts or overrides anything | Shadow off, `TRIPWIRE_MODE=deny_only`, any Claude Code mode |
 | Tripwire to decide, and to answer the unsure calls yourself | Shadow off, `gatekeeper`, Claude Code in default mode |
 | Tripwire in front of auto mode's classifier | Shadow off, `cascade`, Claude Code in auto mode. This hasn't been tried in real use. |
 

@@ -37,6 +37,8 @@ ESCALATE_ONLY = frozenset({"possible_prompt_injection"})
 FILE_WRITE_TOOLS = {"Write", "Edit", "NotebookEdit"}
 _SEPARATORS = re.compile(r"\s*(?:;|&&|\|\||\||\n)\s*")
 _REDIRECT = re.compile(r">>?\s*(\"[^\"]+\"|'[^']+'|[^\s;&|]+)")
+_HEREDOC = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)([\w.-]+)\2")
+_SHELL_WORD = re.compile(r"(?<![\w.-])(?:[\w.-]*/)*(?:ba|z|da|k)?sh(?![\w.-])")
 _WRAPPERS = {"sudo", "command", "exec", "nohup", "time", "env"}
 _DESTINATION_LAST = {"cp", "mv", "install", "ln", "rsync", "scp"}
 _FORCE_FLAGS = {"-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror", "--delete", "-d"}
@@ -66,6 +68,31 @@ def _protected_dirs():
 
 def _guard_dirs(project_dir):
     return [os.path.join(os.path.realpath(project_dir), name) for name in ("tripwire", ".claude")]
+
+
+def _without_heredoc_bodies(command):
+    """Drop heredoc text that is only data, so words in a file being written aren't read as commands.
+
+    Only for rules that deny or ask: anything this hides still reaches the model. The
+    allow rule keeps the full command. A body fed to a shell is kept, because it runs,
+    and so is the whole command if a heredoc never ends, because then it may not be one.
+    """
+    lines = command.split("\n")
+    kept, index = [], 0
+    while index < len(lines):
+        line = lines[index]
+        kept.append(line)
+        index += 1
+        if _SHELL_WORD.search(line):
+            continue
+        for dash, _, word in _HEREDOC.findall(line):
+            for end in range(index, len(lines)):
+                if (lines[end].lstrip("\t") if dash else lines[end]) == word:
+                    index = end + 1
+                    break
+            else:
+                return command
+    return "\n".join(kept)
 
 
 def _commands(command):
@@ -174,10 +201,11 @@ def pre_rule(tool_name, tool_input, cwd, project_dir):
 
     if tool_name == "Bash":
         command = str(tool_input.get("command", ""))
-        for argv in _commands(command):
+        executed = _without_heredoc_bodies(command)
+        for argv in _commands(executed):
             if _is_catastrophic_rm(argv, cwd):
                 return "deny", "recursive delete of the filesystem root or home directory"
-        for target in _write_targets(command):
+        for target in _write_targets(executed):
             path = _expand(target, cwd)
             if any(_is_under(path, root) for root in _protected_dirs()):
                 return "deny", "writes to a protected credentials directory"

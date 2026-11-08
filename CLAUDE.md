@@ -105,7 +105,7 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
 Two separate settings, plus one similar name in the eval:
 
 - **Shadow** (`TRIPWIRE_SHADOW=1` in the hook command): log only, decisions have no effect.
-- **`mode`** (`tripwire/config.toml`), when enforcing: both allow clearly safe calls and deny clearly dangerous ones. On an unsure call, `gatekeeper` (default) prompts the user, and `cascade` exits silently so Claude Code decides as if there were no hook (its classifier in auto mode).
+- **`mode`** (`tripwire/config.toml`), when enforcing: both allow clearly safe calls and deny clearly dangerous ones. On an unsure call, `gatekeeper` (default) prompts the user, and `cascade` exits silently so Claude Code decides as if there were no hook (its classifier in auto mode). `deny_only` (also settable with `TRIPWIRE_MODE`) only lets denies take effect; everything else, including errors, exits silently.
 - **The eval's cascade** (Jev → a Claude model) is a replay of saved answers. The hook can't call Claude, so those results don't describe `mode = "cascade"`.
 
 ## Out of scope for day one

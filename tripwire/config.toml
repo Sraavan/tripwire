@@ -8,6 +8,8 @@ timeout_seconds = 2.5
 [hook]
 # gatekeeper: Tripwire decides. Run Claude Code in default mode.
 # cascade: the ask band exits silently, so the normal permission flow decides.
+# deny_only: only denies take effect. Everything else, including errors, exits silently.
+# TRIPWIRE_MODE in the hook command overrides this.
 mode = "gatekeeper"
 wall_clock_seconds = 3
 

@@ -107,6 +107,7 @@ def main():
     started = time.perf_counter()
     record = {"ts": time.time()}
     decision, reason = "ask", "safety check did not complete"
+    config = None
     try:
         # Set before anything can block. Replaced below once the config is read.
         signal.signal(signal.SIGALRM, _on_alarm)
@@ -130,9 +131,13 @@ def main():
     shadow = bool(os.environ.get("TRIPWIRE_SHADOW"))
     record.update(decision=decision, reason=reason, shadow=shadow,
                   hook_ms=round((time.perf_counter() - started) * 1000, 1))
+    mode = os.environ.get("TRIPWIRE_MODE") or (config or {}).get("hook", {}).get("mode")
+    deny_only = mode == "deny_only" and decision != "deny"
+    if deny_only:
+        record["passed_through"] = True
     log(record)
     if not shadow:
-        emit(decision, reason, out)
+        emit(PASS_THROUGH if deny_only else decision, reason, out)
     return 0
 
 
