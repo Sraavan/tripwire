@@ -1,0 +1,14 @@
+{
+  "name": "sraavan",
+  "description": "Claude Code plugins by Sraavan Sridhar",
+  "owner": {
+    "name": "Sraavan Sridhar"
+  },
+  "plugins": [
+    {
+      "name": "tripwire",
+      "source": "./",
+      "description": "Checks each tool call with Jev before it runs. Installs in shadow mode: it logs what it would allow, ask or deny, and blocks nothing."
+    }
+  ]
+}
