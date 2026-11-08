@@ -53,6 +53,8 @@ def _sanitize(value):
 
 
 def sanitize_call(tool_name, tool_input):
+    if isinstance(tool_input, dict):
+        tool_input = {key: value for key, value in tool_input.items() if key not in _NARRATION_FIELDS}
     return {"tool": tool_name, "input": _sanitize(tool_input)}
 
 
@@ -70,8 +72,24 @@ def _read_lines(path):
 
 
 # Text Claude Code adds to user lines. Checked per block, because a reminder block
-# can sit in front of the text the user typed in the same line.
-_NOT_TYPED = ("<system-reminder>", "<command-", "<local-command", "[Request interrupted by user")
+# can sit in front of the text the user typed in the same line. A "!" command is
+# stored as a human line holding the command and its output: the output is a tool
+# result in all but name, so it must never reach the state.
+_NOT_TYPED = (
+    "<system-reminder>",
+    "<command-",
+    "<local-command",
+    "<bash-input>",
+    "<bash-stdout>",
+    "<bash-stderr>",
+    "[Request interrupted by user",
+)
+# Tools that act on files, the shell or the web. The agent's own planning and
+# messaging tools are narration, and would take the places of real actions.
+ACTION_TOOLS = {"Bash", "Read", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch", "Glob", "Grep"}
+# Inputs the agent writes about its own call. Like its messages, they can argue
+# that the call is safe, so the model judges the call without them.
+_NARRATION_FIELDS = {"description"}
 
 
 def _user_text(entry):
@@ -123,7 +141,7 @@ def read_transcript(path):
             message = entry.get("message")
             content = message.get("content") if isinstance(message, dict) else None
             for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
+                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") in ACTION_TOOLS:
                     calls.append((block.get("name"), block.get("input") or {}))
     return prompts, calls
 

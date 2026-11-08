@@ -4,3 +4,4 @@ __pycache__/
 .env
 tripwire/logs/
 .DS_Store
+.claude/settings.local.json
