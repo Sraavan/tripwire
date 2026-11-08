@@ -102,7 +102,6 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
 
 ## Out of scope for day one (mention as next steps in the README)
 
-- **Local open-weights backend:** small model (e.g. Qwen 1–4B) served with vLLM or llama.cpp; read next-token logits for " yes"/" no" only, softmax over the two to get P(yes); score questions via tokens "1"–"5". Prefix caching (shared context across questions) and batching.
 - **Calibration:** reliability diagrams; temperature scaling (`p = sigmoid(logit_diff / T)`) fit on labeled logs.
 - **Shadow mode:** log-only for a week of real coding to collect real tool calls + my own approve/deny labels.
 - Larger attack set (e.g. AgentDojo), Jev → LLM cascade curves, support for other agents.

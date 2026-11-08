@@ -152,9 +152,10 @@ So Tripwire can sit in front of the classifier in auto mode: `mode = "cascade"` 
 - **Calibration:** reliability diagrams, and temperature scaling fit on labeled logs.
 - **Shadow mode:** a week of real coding in log-only mode to collect real tool calls with my own approve/deny labels.
 - **Cascade:** Jev first, with low-confidence calls sent to an LLM, and curves for how many calls Jev absorbs.
-- **Local open-weights backend:** a small model served with vLLM or llama.cpp, reading next-token logits for yes/no.
 - **Larger attack sets** such as AgentDojo, and support for other agents.
 
 ## License
 
 [MIT](LICENSE)
+
+Tripwire is an independent project. It isn't affiliated with or endorsed by TypeSafe AI or Anthropic. Jev and Claude are their owners' products, named here only to describe what was tested.
