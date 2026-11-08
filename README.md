@@ -149,13 +149,13 @@ There are two separate settings. **Shadow** controls whether Tripwire acts at al
 
 Silent means Claude Code decides as if there were no hook.
 
-What Claude Code does after a silent exit depends on its own permission mode: in auto mode its classifier reviews the call, and in default mode you get its normal permission handling.
+What Claude Code does after a silent exit depends on its own permission mode: in auto mode its classifier reviews the call, and in Manual mode you get its normal permission handling.
 
 | You want | Use |
 |---|---|
 | To see what it would do, with no risk | Shadow on |
 | An extra check that can only block, and never adds prompts or overrides anything | Shadow off, `TRIPWIRE_MODE=deny_only`, any Claude Code mode |
-| Tripwire to decide, and to answer the unsure calls yourself | Shadow off, `gatekeeper`, Claude Code in default mode |
+| Tripwire to decide, and to answer the unsure calls yourself | Shadow off, `gatekeeper`, Claude Code in Manual mode |
 | Tripwire in front of auto mode's classifier | Shadow off, `cascade`, Claude Code in auto mode. This hasn't been tried in real use. |
 
 ### Settings
