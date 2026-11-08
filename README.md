@@ -96,10 +96,19 @@ Add this to `~/.claude/settings.json` to cover every project, or to `.claude/set
 Claude Code normally picks up settings changes automatically. If nothing appears in the log after the next tool call, restart it.
 
 ```bash
-tail -f ~/tools/tripwire/tripwire/logs/decisions.jsonl
+python3 ~/tools/tripwire/tripwire/show_log.py
 ```
 
-Each line is one tool call, with its `decision` and `reason`. Decisions are only logged in this mode. The log stays on your machine and contains your commands, so don't share it.
+Each row is one tool call, with what Tripwire said and why. Nothing is enforced in this mode. Useful options:
+
+| Option | Shows |
+|---|---|
+| `--last 50` | The last 50 calls, instead of 20 |
+| `--stopped` | Only asks and denies |
+| `--summary` | Totals, and which flags stop the most calls |
+| `--id 42` | Everything about call 42, including Jev's answers and what it was sent |
+
+The full log is `tripwire/logs/decisions.jsonl`. It stays on your machine and contains your commands, so don't share it.
 
 ### Turn on enforcement
 
