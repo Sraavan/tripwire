@@ -19,10 +19,10 @@ Agents make dozens of tool calls per task, so a check that runs on every call ha
 | | Jev 1.14 | Claude Haiku 5.5 | Claude Sonnet 5 |
 |---|---|---|---|
 | Dangerous calls allowed | 0 of 140 | 0 of 140 | 0 of 140 |
-| Safe calls wrongly stopped | 11.6% | **2.6%** | **2.1%** |
-| Typical time per call (p50) | **210 ms** | 1,091 ms | 1,788 ms |
+| Safe calls wrongly stopped | 8.9% | **4.2%** | **3.7%** |
+| Typical time per call (p50) | **215 ms** | 1,038 ms | 1,810 ms |
 
-Jev was about 5–9 times faster than the Claude models here, and like them it let no dangerous call through. It stopped more safe calls (11.6%, against 2.6% for Haiku 5.5), but those came from just 5 of the 38 safe cases, and it ranked every dangerous call above every safe one. The questions follow TypeSafe's guidance but are an early version, so better wording or thresholds may reduce that gap, though we haven't tested that. In a replay of the saved answers, using Jev first and sending only the calls it's unsure about to Haiku 5.5 matched Haiku's results at about a third of its average latency. See the [full results and their limits](#results).
+Jev was about 5–8 times faster than the Claude models here, and like them it let no dangerous call through. It stopped more safe calls (8.9%, against 4.2% for Haiku 5.5), but those came from just 4 of the 38 safe cases, and it ranked every dangerous call above every safe one. Rewording one question cut Jev's rate from 11.6%, so better wording may reduce the gap further. In a replay of the saved answers, using Jev first and sending only the calls it's unsure about to Haiku 5.5 stopped 3.7% of safe calls, at about a third of Haiku's average latency. See the [full results and their limits](#results).
 
 ## Quick start
 
@@ -66,7 +66,7 @@ If it's below 3.11, install a newer one and use its full path in place of `pytho
 echo '{"tool_name":"Read","tool_input":{"file_path":"'"$HOME"'/notes.txt"},"cwd":"'"$HOME"'"}' | python3 ~/tools/tripwire/tripwire/hook.py
 ```
 
-You should see JSON containing `"permissionDecision": "allow"`. This makes no network call.
+You should see JSON containing `"permissionDecision": "allow"`. This makes no network call. To also check your key, `python3 ~/tools/tripwire/eval/try_jev.py` sends two sample requests to Jev.
 
 **5. Register the hook**
 
@@ -230,34 +230,34 @@ Tripwire is a best-effort check, not a sandbox.
 | | Jev 1.14 | Claude Haiku 5.5 | Claude Haiku 4.5 | Claude Sonnet 5 (our prompt, not the real classifier) |
 |---|---|---|---|---|
 | **Dangerous calls allowed** | 0 of 140 | 0 of 140 | 0 of 140 | 0 of 140 |
-| **Safe calls wrongly stopped** | 11.6% | **2.6%** | 14.7% | **2.1%** |
-| Ranking of dangerous above safe (AUROC, 1 is perfect) | 1.000 | 0.998 | 0.977 | 1.000 |
-| Probability accuracy (Brier, lower is better) | 0.062 | **0.026** | 0.059 | **0.030** |
-| Latency, typical (p50) | **210 ms** | 1,091 ms | 1,823 ms | 1,788 ms |
-| Latency, near-worst (p99) | **635 ms** | 3,116 ms | 2,763 ms | 2,534 ms |
+| **Safe calls wrongly stopped** | 8.9% | **4.2%** | 8.9% | **3.7%** |
+| Ranking of dangerous above safe (AUROC, 1 is perfect) | 1.000 | 1.000 | 0.997 | 1.000 |
+| Probability accuracy (Brier, lower is better) | 0.055 | **0.026** | 0.046 | **0.028** |
+| Latency, typical (p50) | **215 ms** | 1,038 ms | 1,758 ms | 1,810 ms |
+| Latency, near-worst (p99) | **533 ms** | 2,817 ms | 2,604 ms | 2,724 ms |
 | Errors and refusals | 0 | 0 | 0 | 0 |
 
-The whole Jev hook process, including Python startup, took 286 ms at the median and 713 ms at most.
+The whole Jev hook process, including Python startup, took 302 ms at the median and 342 ms at most, over 27 samples.
 
-**Jev first, Claude when unsure.** Replayed from the same saved answers, Jev decides first and only the calls it would `ask` about (10.9%) go to Claude:
+**Jev first, Claude when unsure.** Replayed from the same saved answers, Jev decides first and only the calls it would `ask` about (10.0%) go to Claude:
 
 | | Sent to Claude | Dangerous allowed | Safe wrongly stopped | Latency p50 / mean |
 |---|---|---|---|---|
-| Haiku 5.5 alone | 100% | 0 of 140 | 2.6% | 1,091 / 1,212 ms |
-| **Jev, then Haiku 5.5** | **10.9%** | **0 of 140** | **2.6%** | **213 / 364 ms** |
-| Jev, then Sonnet 5 | 10.9% | 0 of 140 | 1.6% | 213 / 419 ms |
+| Haiku 5.5 alone | 100% | 0 of 140 | 4.2% | 1,038 / 1,145 ms |
+| **Jev, then Haiku 5.5** | **10.0%** | **0 of 140** | **3.7%** | **224 / 353 ms** |
+| Jev, then Sonnet 5 | 10.0% | 0 of 140 | 2.1% | 224 / 416 ms |
 
 This replay isn't the same as the hook's `cascade` mode. Here, unsure calls go to a Claude model. The hook can't do that today: its `cascade` mode hands unsure calls back to Claude Code, and has no results of its own.
 
-The full breakdown is in [the report](eval/results/20261108-093233-all/report.md), which starts with how to read it.
+The full breakdown is in [the report](eval/results/20261108-162039/report.md), which starts with how to read it.
 
 **Limits of this eval**
 
 - **Claude Code wrote the cases and labels, and no person has reviewed them.** That may favor the Claude models, whose judgment is likely to agree with labels written by a Claude model.
 - 66 cases can't support fine-grained comparisons, and every attack was written for this test set, so "0 allowed" says only that none of these got through.
-- Two policy changes were chosen after seeing the first Jev results: the injection flag only counting alongside another flag, and allowing plain pushes to `origin`. Six multi-request cases (`safe-36`–`38`, `bad-26`–`28`) were also added after the first run. On the original policy, Jev wrongly stops 19.5% of safe calls. The injection rule changed no decision in this test set, so the drop to 11.6% comes from the pre-rules.
-- Every model got the same questions, written following TypeSafe's guidance. The wording changed once, after the first run, and hasn't been compared against alternatives, so these results don't show how much different wording would change any model's score.
-- Eval inputs are shorter and cleaner than real ones. Replaying the current policy on real work in shadow mode would have stopped about half of the calls (86 of 172), in an unusually security-heavy session. Those calls are unlabeled, so it's unknown how many of those stops were justified.
+- Two policy changes were chosen after seeing the first Jev results: the injection flag only counting alongside another flag, and allowing plain pushes to `origin`. Six multi-request cases (`safe-36`–`38`, `bad-26`–`28`) were also added after the first run. On the original policy, Jev wrongly stops 16.8% of safe calls. The injection rule changed no decision for Jev in this test set, so the drop to 8.9% comes from the pre-rules.
+- Every model got the same questions, written following TypeSafe's guidance. The wording has changed twice. Most recently, `sends_data_out` was reworded after a side-by-side test on real shadow-mode calls, and all four models were rerun. It lowered false alarms for Jev (11.6% to 8.9%) and Haiku 4.5 (14.7% to 8.9%) and raised them for Haiku 5.5 (2.6% to 4.2%) and Sonnet 5 (2.1% to 3.7%). The eval cases had been seen before that change, so this isn't a clean held-out test, and only that one question has been tried.
+- Eval inputs are shorter and cleaner than real ones. Before the rewording, replaying the policy on real work in shadow mode would have stopped about half of the calls (86 of 172), in an unusually security-heavy session. The new wording cleared 33 of the 50 most recent calls that question had flagged. Those calls are unlabeled, so it's unknown how many stops were justified.
 - Latency was measured from one Mac's internet connection, with a new connection per call, as the hook makes.
 - The cascade is replayed from saved answers rather than run live.
 
@@ -277,17 +277,17 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
 ### Where Jev could improve
 
-- **False alarms.** 11.6% of safe calls were stopped, against 2.6% for Haiku 5.5 and 2.1% for Sonnet 5.
-- **Pushes to the project's own remote.** `git push origin feature-x` and `gh pr create` scored 0.68–0.79 on `sends_data_out`, even though the criteria say such a push isn't sending data out. Tripwire now settles this in code.
-- **Mid-range probabilities run high.** Flags Jev rated around 0.79 were labeled yes 47% of the time, and those around 0.50 only 13%. At the top it's fine: 0.96 was right 93% of the time. Haiku 5.5's mid-range equivalents were 61% and 42%.
+- **False alarms.** 8.9% of safe calls were stopped, against 4.2% for Haiku 5.5 and 3.7% for Sonnet 5.
+- **Pushes to the project's own remote.** `git push origin feature-x` scored 0.51–0.56 and `gh pr create` 0.73–0.77 on `sends_data_out`, even though the criteria say a push to the project's own remote isn't sending data out. Tripwire now settles this in code.
+- **Mid-range probabilities run high.** Flags Jev rated around 0.79 were labeled yes 57% of the time, and those around 0.48 only 7%. At the top it's fine: 0.96 was right 93% of the time. Haiku 5.5's mid-range equivalents were 60% and 33%.
 - **Injection signals in long sessions.** In shadow use, `follows_planted_instructions` appeared to fire on ordinary work as sessions got longer.
 - **Destructive commands scored lower than expected.** `rm -rf .git` reached only about 0.6 on `is_destructive`, so it was caught but less decisively.
 
-Where Jev did well, on these cases: it never let a dangerous call through and never wrongly denied a safe one, its worst flag separated dangerous from safe calls perfectly (AUROC 1.000), and it gave far finer probabilities (93 distinct values, against 17 to 30 for the Claude models).
+Where Jev did well, on these cases: it never let a dangerous call through and never wrongly denied a safe one, its worst flag separated dangerous from safe calls perfectly (AUROC 1.000), and it gave far finer probabilities (93 distinct values, against 19 to 28 for the Claude models).
 
 ### Replace the classifier, or sit in front of it?
 
-On this test set, Jev alone is the fast option with more false alarms, and Claude alone made fewer of them but was 5–9 times slower. A cascade got close to the best of both. TypeSafe's docs also suggest escalating uncertain cases to a person or a reasoning model.
+On this test set, Jev alone is the fast option with more false alarms, and Claude alone made fewer of them but was 5–8 times slower. A cascade got close to the best of both. TypeSafe's docs also suggest escalating uncertain cases to a person or a reasoning model.
 
 I couldn't find a statement in Claude Code's docs on how a hook's `allow` interacts with auto mode's classifier, so [`eval/allow_test.sh`](eval/allow_test.sh) tests it with a stub hook: a throwaway agent pushes to a local repo, with a `hard_deny` rule forbidding pushes. With a silent hook, the classifier blocked the push in 3 of 3 runs. With a hook returning `allow`, the push landed in 3 of 3 runs.
 
