@@ -1,6 +1,6 @@
 # Tripwire
 
-> **Status:** results below are measured. The hook runs in shadow mode so far and hasn't been enforced in real use; the allow test is still `PENDING`.
+> **Status:** results below are measured. The hook has run in shadow mode so far and hasn't been enforced in real use.
 
 Tripwire is a Claude Code `PreToolUse` hook. Before the agent runs a tool, it asks [Jev](https://docs.typesafe.ai/api), TypeSafe's decision model, seven yes/no questions about the call, then returns allow, ask or deny.
 
@@ -131,7 +131,9 @@ Where Jev did well: it never let a dangerous call through and never wrongly deni
 
 On these numbers, Jev alone is the fast, cheap option with more false alarms, and Claude alone is more accurate but 5–9 times slower. Running them as a cascade gets close to the best of both, which is the pattern TypeSafe's docs and independent tests recommend.
 
-`PENDING`: `eval/allow_test.sh` tests something the docs don't state: whether a hook returning `allow` skips the auto mode classifier. The result decides whether Tripwire can sit in front of Claude Code's own classifier and absorb its calls, or can only add vetoes in auto mode.
+**A hook `allow` skips auto mode's classifier.** Claude Code's docs don't say this, so [`eval/allow_test.sh`](eval/allow_test.sh) tests it: a throwaway agent in auto mode pushes to a local repo, with a `hard_deny` rule forbidding pushes. With a silent hook, the classifier blocked the push in 3 of 3 runs. With a hook returning `allow`, the push landed in 3 of 3 runs, past the same rule.
+
+So Tripwire can sit in front of the classifier in auto mode and absorb its calls: `mode = "cascade"` in the config allows and denies what Jev is sure about and exits silently on the rest, leaving them to the classifier. It also means the hook is trusted completely. A wrong `allow` from Jev is never reviewed by anything else, even a rule that's meant to be unconditional, so a hook that returns `allow` needs to earn it. Only Tripwire's allow decisions carry that risk: an `ask` goes to the permission prompt, and a `deny` blocks.
 
 ## API and DX feedback for TypeSafe
 

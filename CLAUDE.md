@@ -96,7 +96,7 @@ Pitch: Claude Code's auto mode already runs a classifier (Claude Sonnet 5 by def
 - **Hook failures fail open by default:** a non-zero exit other than 2 proceeds, and a timeout doesn't block (default timeout 600s). `onFailure: "block"` needs v2.1.295+.
 - Exit 0 with no output means no decision (the normal permission flow continues). `defer` is different: it ends the turn and needs `-p`.
 - A hook `ask` goes to the permission prompt rather than the auto-mode classifier.
-- **Unverified:** whether a hook returning `allow` skips the auto-mode classifier. Quick test: hook returns allow for a borderline `curl`, run in auto mode, see if it runs. Result decides the design:
+- **Verified (3 of 3 runs, `eval/allow_test.sh`):** a hook returning `allow` skips the auto-mode classifier, even past a `hard_deny` rule. A silent hook leaves the call to the classifier, which blocked it. This is what makes Design 2 possible, and it means a wrong `allow` is never reviewed by anything else:
   - Design 1 (replace): run in default mode; Tripwire is the gatekeeper.
   - Design 2 (cascade): run in auto mode; Tripwire answers when confident, passes through when unsure so Sonnet's classifier decides; measure how many classifier calls Jev absorbs.
 
